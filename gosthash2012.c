@@ -10,8 +10,11 @@
 
 #include "gosthash2012.h"
 #ifdef __x86_64__
-# include <immintrin.h>
-# include <x86intrin.h>
+# ifdef _MSC_VER
+#  include <intrin.h>
+# else
+#  include <x86intrin.h>
+# endif
 #endif
 
 #if defined(_WIN32) || defined(_WINDOWS)
@@ -64,7 +67,7 @@ static INLINE void add512(union uint512_u * RESTRICT x,
     unsigned int CF = 0;
     unsigned int i;
 
-# ifdef __x86_64__
+# ifdef HAVE_ADDCARRY_U64
     for (i = 0; i < 8; i++)
 	CF = _addcarry_u64(CF, x->QWORD[i] , y->QWORD[i], &(x->QWORD[i]));
 # else
@@ -132,6 +135,11 @@ static void g(union uint512_u *h, const union uint512_u * RESTRICT N,
     X128R(xmm0, xmm2, xmm4, xmm6, xmm1, xmm3, xmm5, xmm7);
 
     STORE(h, xmm0, xmm2, xmm4, xmm6);
+# ifndef __x86_64__
+    /* Restore the Floating-point status on the CPU */
+    /* This is only required on MMX, but EXTRACT32 is using MMX */
+    _mm_empty();
+# endif
 #else
     union uint512_u Ki, data;
     unsigned int i;
