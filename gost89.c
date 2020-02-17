@@ -8,6 +8,8 @@
  *                              this code                             *
  **********************************************************************/
 #include <string.h>
+#include <openssl/crypto.h>
+#include <openssl/rand.h>
 #include "gost89.h"
 /*-
    Substitution blocks from RFC 4357
@@ -280,41 +282,41 @@ void gostcrypt(gost_ctx * c, const byte * in, byte * out)
     n2 = in[4] | (in[5] << 8) | (in[6] << 16) | ((word32) in[7] << 24);
     /* Instead of swapping halves, swap names each round */
 
-    n2 ^= f(c, n1 + c->k[0]);
-    n1 ^= f(c, n2 + c->k[1]);
-    n2 ^= f(c, n1 + c->k[2]);
-    n1 ^= f(c, n2 + c->k[3]);
-    n2 ^= f(c, n1 + c->k[4]);
-    n1 ^= f(c, n2 + c->k[5]);
-    n2 ^= f(c, n1 + c->k[6]);
-    n1 ^= f(c, n2 + c->k[7]);
+    n2 ^= f(c, n1 + c->key[0] + c->mask[0]);
+    n1 ^= f(c, n2 + c->key[1] + c->mask[1]);
+    n2 ^= f(c, n1 + c->key[2] + c->mask[2]);
+    n1 ^= f(c, n2 + c->key[3] + c->mask[3]);
+    n2 ^= f(c, n1 + c->key[4] + c->mask[4]);
+    n1 ^= f(c, n2 + c->key[5] + c->mask[5]);
+    n2 ^= f(c, n1 + c->key[6] + c->mask[6]);
+    n1 ^= f(c, n2 + c->key[7] + c->mask[7]);
 
-    n2 ^= f(c, n1 + c->k[0]);
-    n1 ^= f(c, n2 + c->k[1]);
-    n2 ^= f(c, n1 + c->k[2]);
-    n1 ^= f(c, n2 + c->k[3]);
-    n2 ^= f(c, n1 + c->k[4]);
-    n1 ^= f(c, n2 + c->k[5]);
-    n2 ^= f(c, n1 + c->k[6]);
-    n1 ^= f(c, n2 + c->k[7]);
+    n2 ^= f(c, n1 + c->key[0] + c->mask[0]);
+    n1 ^= f(c, n2 + c->key[1] + c->mask[1]);
+    n2 ^= f(c, n1 + c->key[2] + c->mask[2]);
+    n1 ^= f(c, n2 + c->key[3] + c->mask[3]);
+    n2 ^= f(c, n1 + c->key[4] + c->mask[4]);
+    n1 ^= f(c, n2 + c->key[5] + c->mask[5]);
+    n2 ^= f(c, n1 + c->key[6] + c->mask[6]);
+    n1 ^= f(c, n2 + c->key[7] + c->mask[7]);
 
-    n2 ^= f(c, n1 + c->k[0]);
-    n1 ^= f(c, n2 + c->k[1]);
-    n2 ^= f(c, n1 + c->k[2]);
-    n1 ^= f(c, n2 + c->k[3]);
-    n2 ^= f(c, n1 + c->k[4]);
-    n1 ^= f(c, n2 + c->k[5]);
-    n2 ^= f(c, n1 + c->k[6]);
-    n1 ^= f(c, n2 + c->k[7]);
+    n2 ^= f(c, n1 + c->key[0] + c->mask[0]);
+    n1 ^= f(c, n2 + c->key[1] + c->mask[1]);
+    n2 ^= f(c, n1 + c->key[2] + c->mask[2]);
+    n1 ^= f(c, n2 + c->key[3] + c->mask[3]);
+    n2 ^= f(c, n1 + c->key[4] + c->mask[4]);
+    n1 ^= f(c, n2 + c->key[5] + c->mask[5]);
+    n2 ^= f(c, n1 + c->key[6] + c->mask[6]);
+    n1 ^= f(c, n2 + c->key[7] + c->mask[7]);
 
-    n2 ^= f(c, n1 + c->k[7]);
-    n1 ^= f(c, n2 + c->k[6]);
-    n2 ^= f(c, n1 + c->k[5]);
-    n1 ^= f(c, n2 + c->k[4]);
-    n2 ^= f(c, n1 + c->k[3]);
-    n1 ^= f(c, n2 + c->k[2]);
-    n2 ^= f(c, n1 + c->k[1]);
-    n1 ^= f(c, n2 + c->k[0]);
+    n2 ^= f(c, n1 + c->key[7] + c->mask[7]);
+    n1 ^= f(c, n2 + c->key[6] + c->mask[6]);
+    n2 ^= f(c, n1 + c->key[5] + c->mask[5]);
+    n1 ^= f(c, n2 + c->key[4] + c->mask[4]);
+    n2 ^= f(c, n1 + c->key[3] + c->mask[3]);
+    n1 ^= f(c, n2 + c->key[2] + c->mask[2]);
+    n2 ^= f(c, n1 + c->key[1] + c->mask[1]);
+    n1 ^= f(c, n2 + c->key[0] + c->mask[0]);
 
     out[0] = (byte) (n2 & 0xff);
     out[1] = (byte) ((n2 >> 8) & 0xff);
@@ -333,41 +335,41 @@ void gostdecrypt(gost_ctx * c, const byte * in, byte * out)
     n1 = in[0] | (in[1] << 8) | (in[2] << 16) | ((word32) in[3] << 24);
     n2 = in[4] | (in[5] << 8) | (in[6] << 16) | ((word32) in[7] << 24);
 
-    n2 ^= f(c, n1 + c->k[0]);
-    n1 ^= f(c, n2 + c->k[1]);
-    n2 ^= f(c, n1 + c->k[2]);
-    n1 ^= f(c, n2 + c->k[3]);
-    n2 ^= f(c, n1 + c->k[4]);
-    n1 ^= f(c, n2 + c->k[5]);
-    n2 ^= f(c, n1 + c->k[6]);
-    n1 ^= f(c, n2 + c->k[7]);
+    n2 ^= f(c, n1 + c->key[0] + c->mask[0]);
+    n1 ^= f(c, n2 + c->key[1] + c->mask[1]);
+    n2 ^= f(c, n1 + c->key[2] + c->mask[2]);
+    n1 ^= f(c, n2 + c->key[3] + c->mask[3]);
+    n2 ^= f(c, n1 + c->key[4] + c->mask[4]);
+    n1 ^= f(c, n2 + c->key[5] + c->mask[5]);
+    n2 ^= f(c, n1 + c->key[6] + c->mask[6]);
+    n1 ^= f(c, n2 + c->key[7] + c->mask[7]);
 
-    n2 ^= f(c, n1 + c->k[7]);
-    n1 ^= f(c, n2 + c->k[6]);
-    n2 ^= f(c, n1 + c->k[5]);
-    n1 ^= f(c, n2 + c->k[4]);
-    n2 ^= f(c, n1 + c->k[3]);
-    n1 ^= f(c, n2 + c->k[2]);
-    n2 ^= f(c, n1 + c->k[1]);
-    n1 ^= f(c, n2 + c->k[0]);
+    n2 ^= f(c, n1 + c->key[7] + c->mask[7]);
+    n1 ^= f(c, n2 + c->key[6] + c->mask[6]);
+    n2 ^= f(c, n1 + c->key[5] + c->mask[5]);
+    n1 ^= f(c, n2 + c->key[4] + c->mask[4]);
+    n2 ^= f(c, n1 + c->key[3] + c->mask[3]);
+    n1 ^= f(c, n2 + c->key[2] + c->mask[2]);
+    n2 ^= f(c, n1 + c->key[1] + c->mask[1]);
+    n1 ^= f(c, n2 + c->key[0] + c->mask[0]);
 
-    n2 ^= f(c, n1 + c->k[7]);
-    n1 ^= f(c, n2 + c->k[6]);
-    n2 ^= f(c, n1 + c->k[5]);
-    n1 ^= f(c, n2 + c->k[4]);
-    n2 ^= f(c, n1 + c->k[3]);
-    n1 ^= f(c, n2 + c->k[2]);
-    n2 ^= f(c, n1 + c->k[1]);
-    n1 ^= f(c, n2 + c->k[0]);
+    n2 ^= f(c, n1 + c->key[7] + c->mask[7]);
+    n1 ^= f(c, n2 + c->key[6] + c->mask[6]);
+    n2 ^= f(c, n1 + c->key[5] + c->mask[5]);
+    n1 ^= f(c, n2 + c->key[4] + c->mask[4]);
+    n2 ^= f(c, n1 + c->key[3] + c->mask[3]);
+    n1 ^= f(c, n2 + c->key[2] + c->mask[2]);
+    n2 ^= f(c, n1 + c->key[1] + c->mask[1]);
+    n1 ^= f(c, n2 + c->key[0] + c->mask[0]);
 
-    n2 ^= f(c, n1 + c->k[7]);
-    n1 ^= f(c, n2 + c->k[6]);
-    n2 ^= f(c, n1 + c->k[5]);
-    n1 ^= f(c, n2 + c->k[4]);
-    n2 ^= f(c, n1 + c->k[3]);
-    n1 ^= f(c, n2 + c->k[2]);
-    n2 ^= f(c, n1 + c->k[1]);
-    n1 ^= f(c, n2 + c->k[0]);
+    n2 ^= f(c, n1 + c->key[7] + c->mask[7]);
+    n1 ^= f(c, n2 + c->key[6] + c->mask[6]);
+    n2 ^= f(c, n1 + c->key[5] + c->mask[5]);
+    n1 ^= f(c, n2 + c->key[4] + c->mask[4]);
+    n2 ^= f(c, n1 + c->key[3] + c->mask[3]);
+    n1 ^= f(c, n2 + c->key[2] + c->mask[2]);
+    n2 ^= f(c, n1 + c->key[1] + c->mask[1]);
+    n1 ^= f(c, n2 + c->key[0] + c->mask[0]);
 
     out[0] = (byte) (n2 & 0xff);
     out[1] = (byte) ((n2 >> 8) & 0xff);
@@ -378,6 +380,7 @@ void gostdecrypt(gost_ctx * c, const byte * in, byte * out)
     out[6] = (byte) ((n1 >> 16) & 0xff);
     out[7] = (byte) (n1 >> 24);
 }
+
 
 /* Encrypts several blocks in ECB mode */
 void gost_enc(gost_ctx * c, const byte * clear, byte * cipher, int blocks)
@@ -449,10 +452,11 @@ void gost_enc_with_key(gost_ctx * c, byte * key, byte * inblock,
 void gost_key(gost_ctx * c, const byte * k)
 {
     int i, j;
-    for (i = 0, j = 0; i < 8; i++, j += 4) {
-        c->k[i] =
-            k[j] | (k[j + 1] << 8) | (k[j + 2] << 16) | ((word32) k[j + 3] <<
-                                                         24);
+    RAND_bytes((unsigned char *)c->mask, sizeof(c->mask));
+    for (i = 0, j = 0; i < 8; ++i, j += 4) {
+        c->key[i] =
+            (k[j] | (k[j + 1] << 8) | (k[j + 2] << 16) | ((word32) k[j + 3] <<
+                                                         24)) - c->mask[i];
     }
 }
 
@@ -460,10 +464,11 @@ void gost_key(gost_ctx * c, const byte * k)
 void magma_key(gost_ctx * c, const byte * k)
 {
     int i, j;
-    for (i = 0, j = 0; i < 8; i++, j += 4) {
-        c->k[i] =
-            k[j + 3] | (k[j + 2] << 8) | (k[j + 1] << 16) | ((word32) k[j] <<
-                                                             24);
+    RAND_bytes((unsigned char *)c->mask, sizeof(c->mask));
+    for (i = 0, j = 0; i < 8; ++i, j += 4) {
+        c->key[i] =
+            (k[j + 3] | (k[j + 2] << 8) | (k[j + 1] << 16) | ((word32) k[j] <<
+                                                             24))  - c->mask[i];
     }
 }
 
@@ -472,10 +477,10 @@ void gost_get_key(gost_ctx * c, byte * k)
 {
     int i, j;
     for (i = 0, j = 0; i < 8; i++, j += 4) {
-        k[j] = (byte) (c->k[i] & 0xFF);
-        k[j + 1] = (byte) ((c->k[i] >> 8) & 0xFF);
-        k[j + 2] = (byte) ((c->k[i] >> 16) & 0xFF);
-        k[j + 3] = (byte) ((c->k[i] >> 24) & 0xFF);
+        k[j] = (byte)((c->key[i] + c->mask[i]) & 0xFF);
+        k[j+1] = (byte)(((c->key[i] + c->mask[i]) >> 8 )& 0xFF);
+        k[j+2] = (byte)(((c->key[i] + c->mask[i]) >> 16) & 0xFF);
+        k[j+3] = (byte)(((c->key[i] + c->mask[i]) >> 24) & 0xFF);
     }
 }
 
@@ -484,10 +489,10 @@ void magma_get_key(gost_ctx * c, byte * k)
 {
     int i, j;
     for (i = 0, j = 0; i < 8; i++, j += 4) {
-        k[j + 3] = (byte) (c->k[i] & 0xFF);
-        k[j + 2] = (byte) ((c->k[i] >> 8) & 0xFF);
-        k[j + 1] = (byte) ((c->k[i] >> 16) & 0xFF);
-        k[j + 0] = (byte) ((c->k[i] >> 24) & 0xFF);
+        k[j + 3] = (byte) ((c->key[i] + c->mask[i]) & 0xFF);
+        k[j + 2] = (byte) (((c->key[i] + c->mask[i]) >> 8) & 0xFF);
+        k[j + 1] = (byte) (((c->key[i] + c->mask[i]) >> 16) & 0xFF);
+        k[j + 0] = (byte) (((c->key[i] + c->mask[i]) >> 24) & 0xFF);
     }
 }
 
@@ -503,9 +508,8 @@ void gost_init(gost_ctx * c, const gost_subst_block * b)
 /* Cleans up key from context */
 void gost_destroy(gost_ctx * c)
 {
-    int i;
-    for (i = 0; i < 8; i++)
-        c->k[i] = 0;
+    OPENSSL_cleanse(c->key, sizeof(c->key));
+    OPENSSL_cleanse(c->mask, sizeof(c->mask));
 }
 
 /*
@@ -526,23 +530,23 @@ void mac_block(gost_ctx * c, byte * buffer, const byte * block)
                                                              buffer[7] << 24);
     /* Instead of swapping halves, swap names each round */
 
-    n2 ^= f(c, n1 + c->k[0]);
-    n1 ^= f(c, n2 + c->k[1]);
-    n2 ^= f(c, n1 + c->k[2]);
-    n1 ^= f(c, n2 + c->k[3]);
-    n2 ^= f(c, n1 + c->k[4]);
-    n1 ^= f(c, n2 + c->k[5]);
-    n2 ^= f(c, n1 + c->k[6]);
-    n1 ^= f(c, n2 + c->k[7]);
+    n2 ^= f(c, n1 + c->key[0] + c->mask[0]);
+    n1 ^= f(c, n2 + c->key[1] + c->mask[1]);
+    n2 ^= f(c, n1 + c->key[2] + c->mask[2]);
+    n1 ^= f(c, n2 + c->key[3] + c->mask[3]);
+    n2 ^= f(c, n1 + c->key[4] + c->mask[4]);
+    n1 ^= f(c, n2 + c->key[5] + c->mask[5]);
+    n2 ^= f(c, n1 + c->key[6] + c->mask[6]);
+    n1 ^= f(c, n2 + c->key[7] + c->mask[7]);
 
-    n2 ^= f(c, n1 + c->k[0]);
-    n1 ^= f(c, n2 + c->k[1]);
-    n2 ^= f(c, n1 + c->k[2]);
-    n1 ^= f(c, n2 + c->k[3]);
-    n2 ^= f(c, n1 + c->k[4]);
-    n1 ^= f(c, n2 + c->k[5]);
-    n2 ^= f(c, n1 + c->k[6]);
-    n1 ^= f(c, n2 + c->k[7]);
+    n2 ^= f(c, n1 + c->key[0] + c->mask[0]);
+    n1 ^= f(c, n2 + c->key[1] + c->mask[1]);
+    n2 ^= f(c, n1 + c->key[2] + c->mask[2]);
+    n1 ^= f(c, n2 + c->key[3] + c->mask[3]);
+    n2 ^= f(c, n1 + c->key[4] + c->mask[4]);
+    n1 ^= f(c, n2 + c->key[5] + c->mask[5]);
+    n2 ^= f(c, n1 + c->key[6] + c->mask[6]);
+    n1 ^= f(c, n2 + c->key[7] + c->mask[7]);
 
     buffer[0] = (byte) (n1 & 0xff);
     buffer[1] = (byte) ((n1 >> 8) & 0xff);
@@ -627,11 +631,13 @@ void cryptopro_key_meshing(gost_ctx * ctx, unsigned char *iv)
     gost_dec(ctx, CryptoProKeyMeshingKey, newkey, 4);
     /* set new key */
     gost_key(ctx, newkey);
+    OPENSSL_cleanse(newkey, sizeof(newkey));
     /* Encrypt iv with new key */
     if (iv != NULL ) {
         unsigned char newiv[8];
         gostcrypt(ctx, iv, newiv);
         memcpy(iv, newiv, 8);
+        OPENSSL_cleanse(newiv, sizeof(newiv));
     }
 }
 
@@ -639,16 +645,19 @@ void acpkm_magma_key_meshing(gost_ctx * ctx)
 {
     unsigned char newkey[32];
     int i, j;
-    unsigned char buf[8], keybuf[8];
 
     for (i = 0; i < 4; i++) {
+        unsigned char buf[8], keybuf[8];
         for (j = 0; j < 8; j++) {
             buf[j] = ACPKM_D_const[8 * i + 7 - j];
         }
         gostcrypt(ctx, buf, keybuf);
         memcpy(newkey + 8 * i, keybuf + 4, 4);
         memcpy(newkey + 8 * i + 4, keybuf, 4);
+        OPENSSL_cleanse(keybuf, sizeof(keybuf));
+        OPENSSL_cleanse(buf, sizeof(buf));
     }
     /* set new key */
     gost_key(ctx, newkey);
+    OPENSSL_cleanse(newkey, sizeof(newkey));
 }
