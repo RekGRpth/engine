@@ -27,7 +27,7 @@ int VKO_compute_key(unsigned char *shared_key,
     BIGNUM *UKM = NULL, *p = NULL, *order = NULL, *X = NULL, *Y = NULL, *cofactor = NULL;
     const BIGNUM *key = EC_KEY_get0_private_key(priv_key);
     EC_POINT *pnt = EC_POINT_new(EC_KEY_get0_group(priv_key));
-    BN_CTX *ctx = BN_CTX_new();
+    BN_CTX *ctx = BN_CTX_secure_new();
     EVP_MD_CTX *mdctx = NULL;
     const EVP_MD *md = NULL;
     int buf_len, half_len;
@@ -45,7 +45,7 @@ int VKO_compute_key(unsigned char *shared_key,
         goto err;
     }
 
-    UKM = hashsum2bn(ukm, ukm_size);
+    UKM = BN_lebin2bn(ukm, ukm_size, NULL);
     p = BN_CTX_get(ctx);
     order = BN_CTX_get(ctx);
 		cofactor = BN_CTX_get(ctx);
@@ -338,9 +338,11 @@ static int pkey_GOST_ECcp_encrypt(EVP_PKEY_CTX *pctx, unsigned char *out,
     }
     if ((*out_len = i2d_GOST_KEY_TRANSPORT(gkt, out ? &out : NULL)) > 0)
         ret = 1;
+    OPENSSL_cleanse(shared_key, sizeof(shared_key));
     GOST_KEY_TRANSPORT_free(gkt);
     return ret;
  err:
+    OPENSSL_cleanse(shared_key, sizeof(shared_key));
     if (key_is_ephemeral)
         EVP_PKEY_free(sec_key);
     GOST_KEY_TRANSPORT_free(gkt);
@@ -444,6 +446,7 @@ static int pkey_gost2018_encrypt(EVP_PKEY_CTX *pctx, unsigned char *out,
     if ((*out_len = i2d_PSKeyTransport_gost(pst, out ? &out : NULL)) > 0)
         ret = 1;
  err:
+    OPENSSL_cleanse(expkeys, sizeof(expkeys));
     if (key_is_ephemeral)
       EVP_PKEY_free(sec_key);
 
@@ -550,6 +553,7 @@ static int pkey_GOST_ECcp_decrypt(EVP_PKEY_CTX *pctx, unsigned char *key,
 
     ret = 1;
  err:
+    OPENSSL_cleanse(sharedKey, sizeof(sharedKey));
     EVP_PKEY_free(eph_key);
     GOST_KEY_TRANSPORT_free(gkt);
     return ret;
@@ -630,6 +634,7 @@ static int pkey_gost2018_decrypt(EVP_PKEY_CTX *pctx, unsigned char *key,
 
     ret = 1;
  err:
+    OPENSSL_cleanse(expkeys, sizeof(expkeys));
     EVP_PKEY_free(eph_key);
     PSKeyTransport_gost_free(pst);
     return ret;
