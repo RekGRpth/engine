@@ -33,14 +33,22 @@ void ERR_GOST_error(int function, int reason, char *file, int line);
 # define GOST_F_ENCODE_GOST_ALGOR_PARAMS                  101
 # define GOST_F_FILL_GOST_EC_PARAMS                       102
 # define GOST_F_GET_ENCRYPTION_PARAMS                     103
+# define GOST_F_GOST2015_GET_ASN1_PARAMS                  158
+# define GOST_F_GOST2015_SET_ASN1_PARAMS                  159
 # define GOST_F_GOST89_GET_ASN1_PARAMETERS                104
 # define GOST_F_GOST89_SET_ASN1_PARAMETERS                105
 # define GOST_F_GOST_CIPHER_CTL                           106
+# define GOST_F_GOST_CMS_SET_KARI_SHARED_INFO             156
+# define GOST_F_GOST_CMS_SET_KTRI_SHARED_INFO             157
+# define GOST_F_GOST_CMS_SET_SHARED_INFO                  155
 # define GOST_F_GOST_EC_COMPUTE_PUBLIC                    107
 # define GOST_F_GOST_EC_KEYGEN                            108
 # define GOST_F_GOST_EC_SIGN                              109
 # define GOST_F_GOST_EC_VERIFY                            110
+# define GOST_F_GOST_ENCODE_CMS_PARAMS                    161
 # define GOST_F_GOST_GRASSHOPPER_CIPHER_CTL               111
+# define GOST_F_GOST_GRASSHOPPER_CIPHER_DO_CTRACPKM_OMAC  160
+# define GOST_F_GOST_GRASSHOPPER_CIPHER_INIT_CTRACPKM_OMAC 162
 # define GOST_F_GOST_GRASSHOPPER_SET_ASN1_PARAMETERS      112
 # define GOST_F_GOST_IMIT_CTRL                            113
 # define GOST_F_GOST_IMIT_FINAL                           114
@@ -48,6 +56,9 @@ void ERR_GOST_error(int function, int reason, char *file, int line);
 # define GOST_F_GOST_KDFTREE2012_256                      149
 # define GOST_F_GOST_KEXP15                               143
 # define GOST_F_GOST_KIMP15                               148
+# define GOST_F_MAGMA_CIPHER_CTL                          163
+# define GOST_F_MAGMA_CIPHER_CTL_ACPKM_OMAC               164
+# define GOST_F_MAGMA_CIPHER_INIT_CTR_ACPKM_OMAC          165
 # define GOST_F_OMAC_ACPKM_IMIT_CTRL                      144
 # define GOST_F_OMAC_ACPKM_IMIT_FINAL                     145
 # define GOST_F_OMAC_ACPKM_IMIT_UPDATE                    146
@@ -98,8 +109,10 @@ void ERR_GOST_error(int function, int reason, char *file, int line);
 # define GOST_R_CTRL_CALL_FAILED                          104
 # define GOST_R_ERROR_COMPUTING_EXPORT_KEYS               135
 # define GOST_R_ERROR_COMPUTING_SHARED_KEY                105
+# define GOST_R_ERROR_DECODING_PUBLIC_KEY                 138
 # define GOST_R_ERROR_PARSING_KEY_TRANSPORT_INFO          106
 # define GOST_R_ERROR_POINT_MUL                           107
+# define GOST_R_ERROR_SETTING_PEER_KEY                    139
 # define GOST_R_INCOMPATIBLE_ALGORITHMS                   108
 # define GOST_R_INCOMPATIBLE_PEER_KEY                     109
 # define GOST_R_INVALID_CIPHER                            134
@@ -125,5 +138,6 @@ void ERR_GOST_error(int function, int reason, char *file, int line);
 # define GOST_R_UKM_NOT_SET                               129
 # define GOST_R_UNSUPPORTED_CIPHER_CTL_COMMAND            130
 # define GOST_R_UNSUPPORTED_PARAMETER_SET                 131
+# define GOST_R_UNSUPPORTED_RECIPIENT_INFO                137
 
 #endif

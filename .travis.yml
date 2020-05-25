@@ -8,7 +8,8 @@ env:
   global:
     - PREFIX=${HOME}/opt
     - PATH=${PREFIX}/bin:${PATH}
-    - OPENSSL_BRANCH=OpenSSL_1_1_1-stable
+    - OPENSSL_BRANCH=openssl-3.0.0-alpha2
+    #- OPENSSL_BRANCH=master
     - RPATH="-Wl,-rpath=${PREFIX}/lib"
 
 matrix:
@@ -61,6 +62,7 @@ before_script:
   - cd ..
 
 script:
+  - set -e
   - mkdir build
   - cd build
   - cmake -DOPENSSL_ROOT_DIR=${PREFIX} -DOPENSSL_LIBRARIES=${PREFIX}/lib -DOPENSSL_ENGINES_DIR=${PREFIX}/engines ${ASAN} ..

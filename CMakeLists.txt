@@ -8,13 +8,13 @@ include(CheckCSourceRuns)
 
 enable_testing()
 
-find_package(OpenSSL 1.1.1 REQUIRED)
+find_package(OpenSSL 3.0 REQUIRED)
 include_directories(${OPENSSL_INCLUDE_DIR})
 
 if (CMAKE_C_COMPILER_ID MATCHES "Clang")
  add_compile_options(-O2 -Werror -Wall -Wno-unused-parameter -Wno-unused-function -Wno-missing-braces -ggdb -Qunused-arguments)
 elseif(CMAKE_C_COMPILER_ID MATCHES "GNU")
- add_compile_options(-O2 -Werror -Wall -Wno-unused-parameter -Wno-unused-function -Wno-missing-braces -ggdb -Wno-error=unknown-pragmas)
+ add_compile_options(-O2 -Werror -Wall -Wno-unused-parameter -Wno-unused-function -Wno-missing-braces -ggdb -Wno-error=unknown-pragmas -Wno-deprecated-declarations)
 elseif(CMAKE_C_COMPILER_ID MATCHES "MSVC")
  add_definitions(-D_CRT_SECURE_NO_WARNINGS)
  add_definitions(-D_CRT_DEPRECATED_NO_WARNINGS)
@@ -160,12 +160,18 @@ set(GOST_ENGINE_SOURCE_FILES
         gost_pmeth.c
         gost_omac.c
         gost_omac_acpkm.c
+        gost_gost2015.c
         )
 
 add_executable(test_digest test_digest.c)
 target_link_libraries(test_digest gost_engine gost_core ${OPENSSL_CRYPTO_LIBRARY})
 add_test(NAME digest
 	COMMAND test_digest)
+
+add_executable(test_ciphers test_ciphers.c)
+target_link_libraries(test_ciphers gost_engine gost_core ${OPENSSL_CRYPTO_LIBRARY})
+add_test(NAME ciphers
+	COMMAND test_ciphers)
 
 add_executable(test_curves test_curves.c)
 target_link_libraries(test_curves gost_engine gost_core ${OPENSSL_CRYPTO_LIBRARY})
@@ -191,11 +197,6 @@ add_executable(test_context test_context.c)
 target_link_libraries(test_context gost_engine gost_core ${OPENSSL_CRYPTO_LIBRARY})
 add_test(NAME context
 	COMMAND test_context)
-
-add_executable(test_grasshopper test_grasshopper.c)
-target_link_libraries(test_grasshopper gost_engine gost_core ${OPENSSL_CRYPTO_LIBRARY})
-add_test(NAME grasshopper
-	COMMAND test_grasshopper)
 
 add_executable(test_keyexpimp test_keyexpimp.c)
 #target_compile_definitions(test_keyexpimp PUBLIC -DOPENSSL_LOAD_CONF)
@@ -228,11 +229,11 @@ target_link_libraries(sign gost_engine gost_core ${OPENSSL_CRYPTO_LIBRARY} ${CLO
 # All that may need to load just built engine will have path to it defined.
 set(BINARY_TESTS_TARGETS
         test_digest
+        test_ciphers
         test_curves
         test_params
         test_sign
         test_context
-        test_grasshopper
         test_keyexpimp
         test_gost89
 	test_tls
