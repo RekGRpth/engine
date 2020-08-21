@@ -57,6 +57,7 @@ int register_pmeth_gost(int id, EVP_PKEY_METHOD **pmeth, int flags);
 /* For GOST R34.10 parameters */
 # define param_ctrl_string "paramset"
 # define ukm_ctrl_string "ukmhex"
+# define vko_ctrl_string "vko"
 # define EVP_PKEY_CTRL_GOST_PARAMSET (EVP_PKEY_ALG_CTRL+1)
 /* For GOST 28147 MAC */
 # define key_ctrl_string "key"
@@ -64,6 +65,7 @@ int register_pmeth_gost(int id, EVP_PKEY_METHOD **pmeth, int flags);
 # define maclen_ctrl_string "size"
 # define EVP_PKEY_CTRL_GOST_MAC_HEXKEY (EVP_PKEY_ALG_CTRL+3)
 # define EVP_PKEY_CTRL_MAC_LEN (EVP_PKEY_ALG_CTRL+5)
+# define EVP_PKEY_CTRL_SET_VKO (EVP_PKEY_ALG_CTRL+11)
 /* Pmeth internal representation */
 struct gost_pmeth_data {
     int sign_param_nid;         /* Should be set whenever parameters are
@@ -73,6 +75,7 @@ struct gost_pmeth_data {
     size_t shared_ukm_size;
     int peer_key_used;
     int cipher_nid;             /* KExp15/KImp15 algs */
+    int vko_dgst_nid;
 };
 
 struct gost_mac_pmeth_data {
@@ -247,6 +250,22 @@ ECDSA_SIG *gost_ec_sign(const unsigned char *dgst, int dlen, EC_KEY *eckey);
 int gost_ec_verify(const unsigned char *dgst, int dgst_len,
                    ECDSA_SIG *sig, EC_KEY *ec);
 int gost_ec_compute_public(EC_KEY *ec);
+int gost_ec_point_mul(const EC_GROUP *group, EC_POINT *r, const BIGNUM *n,
+                      const EC_POINT *q, const BIGNUM *m, BN_CTX *ctx);
+
+#define CURVEDEF(a) \
+int point_mul_##a(const EC_GROUP *group, EC_POINT *r, const EC_POINT *q, const BIGNUM *m, BN_CTX *ctx);\
+int point_mul_g_##a(const EC_GROUP *group, EC_POINT *r, const BIGNUM *n, BN_CTX *ctx);\
+int point_mul_two_##a(const EC_GROUP *group, EC_POINT *r, const BIGNUM *n, const EC_POINT *q, const BIGNUM *m, BN_CTX *ctx);
+
+CURVEDEF(id_GostR3410_2001_CryptoPro_A_ParamSet)
+CURVEDEF(id_GostR3410_2001_CryptoPro_B_ParamSet)
+CURVEDEF(id_GostR3410_2001_CryptoPro_C_ParamSet)
+CURVEDEF(id_GostR3410_2001_TestParamSet)
+CURVEDEF(id_tc26_gost_3410_2012_256_paramSetA)
+CURVEDEF(id_tc26_gost_3410_2012_512_paramSetA)
+CURVEDEF(id_tc26_gost_3410_2012_512_paramSetB)
+CURVEDEF(id_tc26_gost_3410_2012_512_paramSetC)
 
 /* VKO */
 int VKO_compute_key(unsigned char *shared_key,

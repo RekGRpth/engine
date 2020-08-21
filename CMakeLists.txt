@@ -12,7 +12,7 @@ find_package(OpenSSL 3.0 REQUIRED)
 include_directories(${OPENSSL_INCLUDE_DIR})
 
 if (CMAKE_C_COMPILER_ID MATCHES "Clang")
- add_compile_options(-O2 -Werror -Wall -Wno-unused-parameter -Wno-unused-function -Wno-missing-braces -ggdb -Qunused-arguments)
+ add_compile_options(-O2 -Werror -Wall -Wno-unused-parameter -Wno-unused-function -Wno-missing-braces -ggdb -Qunused-arguments -Wno-deprecated-declarations)
 elseif(CMAKE_C_COMPILER_ID MATCHES "GNU")
  add_compile_options(-O2 -Werror -Wall -Wno-unused-parameter -Wno-unused-function -Wno-missing-braces -ggdb -Wno-error=unknown-pragmas -Wno-deprecated-declarations)
 elseif(CMAKE_C_COMPILER_ID MATCHES "MSVC")
@@ -136,6 +136,14 @@ set(GOST_CORE_SOURCE_FILES
 set(GOST_EC_SOURCE_FILES
         gost_ec_keyx.c
         gost_ec_sign.c
+        ecp_id_GostR3410_2001_CryptoPro_A_ParamSet.c
+        ecp_id_GostR3410_2001_CryptoPro_B_ParamSet.c
+        ecp_id_GostR3410_2001_CryptoPro_C_ParamSet.c
+        ecp_id_GostR3410_2001_TestParamSet.c
+        ecp_id_tc26_gost_3410_2012_256_paramSetA.c
+        ecp_id_tc26_gost_3410_2012_512_paramSetA.c
+        ecp_id_tc26_gost_3410_2012_512_paramSetB.c
+        ecp_id_tc26_gost_3410_2012_512_paramSetC.c
         )
 
 set (GOST_OMAC_SOURCE_FILES
@@ -182,6 +190,11 @@ add_executable(test_params test_params.c)
 target_link_libraries(test_params gost_engine gost_core ${OPENSSL_CRYPTO_LIBRARY})
 add_test(NAME parameters
 	COMMAND test_params)
+
+add_executable(test_derive test_derive.c)
+target_link_libraries(test_derive gost_engine gost_core ${OPENSSL_CRYPTO_LIBRARY})
+add_test(NAME derive
+	COMMAND test_derive)
 
 add_executable(test_sign test_sign.c)
 target_link_libraries(test_sign gost_engine gost_core ${OPENSSL_CRYPTO_LIBRARY})
@@ -232,6 +245,7 @@ set(BINARY_TESTS_TARGETS
         test_ciphers
         test_curves
         test_params
+        test_derive
         test_sign
         test_context
         test_keyexpimp
