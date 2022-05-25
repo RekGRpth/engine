@@ -1,0 +1,20 @@
+name: Merge
+on:
+  schedule:
+    - cron: '0 19 * * *'
+  workflow_dispatch:
+env:
+  GITHUB_TOKEN: ${{ github.token }}
+  INPUTS_REPOSITORY: gost-engine/engine
+  INPUTS_BRANCH: ${{ github.job }}
+jobs:
+  master:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: rekgrpth/git-clone-shell-action@v1
+      - uses: rekgrpth/git-fetch-upstream-merge-push-shell-action@v1
+  openssl_1_1_1:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: rekgrpth/git-clone-shell-action@v1
+      - uses: rekgrpth/git-fetch-upstream-merge-push-shell-action@v1
