@@ -9,7 +9,7 @@ jobs:
     gcc-openssl-stable:
         runs-on: ubuntu-20.04
         steps:
-            - uses: actions/checkout@v2
+            - uses: actions/checkout@v3
               with:
                   submodules: true
             - run: .github/before_script.sh
@@ -20,7 +20,7 @@ jobs:
         env:
             CC: clang
         steps:
-            - uses: actions/checkout@v2
+            - uses: actions/checkout@v3
               with:
                   submodules: true
             - run: .github/before_script.sh
@@ -31,7 +31,7 @@ jobs:
         env:
             USE_RPATH:
         steps:
-            - uses: actions/checkout@v2
+            - uses: actions/checkout@v3
               with:
                   submodules: true
             - run: .github/before_script.sh
@@ -42,7 +42,7 @@ jobs:
         env:
             OPENSSL_BRANCH: master
         steps:
-            - uses: actions/checkout@v2
+            - uses: actions/checkout@v3
               with:
                   submodules: true
             - run: .github/before_script.sh
@@ -54,7 +54,7 @@ jobs:
             OPENSSL_BRANCH: master
             USE_RPATH:
         steps:
-            - uses: actions/checkout@v2
+            - uses: actions/checkout@v3
               with:
                   submodules: true
             - run: .github/before_script.sh
@@ -66,7 +66,7 @@ jobs:
             OPENSSL_BRANCH: master
             ASAN: -DASAN=1
         steps:
-            - uses: actions/checkout@v2
+            - uses: actions/checkout@v3
               with:
                   submodules: true
             - run: .github/before_script.sh
@@ -79,7 +79,7 @@ jobs:
             ASAN: -DASAN=1
             USE_RPATH:
         steps:
-            - uses: actions/checkout@v2
+            - uses: actions/checkout@v3
               with:
                   submodules: true
             - run: .github/before_script.sh
@@ -93,7 +93,7 @@ jobs:
             SETARCH: "setarch i386"
             APT_INSTALL: gcc-multilib
         steps:
-            - uses: actions/checkout@v2
+            - uses: actions/checkout@v3
               with:
                   submodules: true
             - run: .github/before_script.sh
