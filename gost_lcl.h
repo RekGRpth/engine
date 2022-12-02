@@ -17,6 +17,7 @@
 # include <openssl/x509.h>
 # include <openssl/engine.h>
 # include <openssl/ec.h>
+# include <openssl/asn1.h>
 # include "gost89.h"
 # include "gosthash.h"
 /* Control commands */
@@ -351,11 +352,13 @@ extern GOST_cipher magma_ctr_acpkm_cipher;
 extern GOST_cipher magma_ctr_acpkm_omac_cipher;
 extern GOST_cipher magma_ecb_cipher;
 extern GOST_cipher magma_cbc_cipher;
+extern GOST_cipher magma_mgm_cipher;
 extern GOST_cipher grasshopper_ecb_cipher;
 extern GOST_cipher grasshopper_cbc_cipher;
 extern GOST_cipher grasshopper_cfb_cipher;
 extern GOST_cipher grasshopper_ofb_cipher;
 extern GOST_cipher grasshopper_ctr_cipher;
+extern GOST_cipher grasshopper_mgm_cipher;
 extern GOST_cipher grasshopper_ctr_acpkm_cipher;
 extern GOST_cipher grasshopper_ctr_acpkm_omac_cipher;
 extern GOST_cipher magma_kexp15_cipher;
@@ -399,6 +402,19 @@ extern GOST_digest kuznyechik_ctracpkm_omac_digest;
 /* Provider implementation data */
 extern const OSSL_ALGORITHM GOST_prov_digests[];
 void GOST_prov_deinit_digests(void);
+
+/* job to initialize a missing NID */
+struct gost_nid_job {
+    const char *sn;
+    const char *ln;
+    void (*callback)(int nid);
+    ASN1_OBJECT *asn1;
+};
+
+typedef struct gost_nid_job GOST_NID_JOB;
+
+extern GOST_NID_JOB magma_mgm_NID;
+extern GOST_NID_JOB kuznyechik_mgm_NID;
 
 #endif
 /* vim: set expandtab cinoptions=\:0,l1,t0,g0,(0 sw=4 : */

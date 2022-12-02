@@ -93,10 +93,12 @@ GOST_cipher *gost_cipher_array[] = {
     &grasshopper_ofb_cipher,
     &grasshopper_ctr_cipher,
     &magma_ecb_cipher,
+    &grasshopper_mgm_cipher,
     &magma_cbc_cipher,
     &magma_ctr_cipher,
     &magma_ctr_acpkm_cipher,
     &magma_ctr_acpkm_omac_cipher,
+    &magma_mgm_cipher,
     &grasshopper_ctr_acpkm_cipher,
     &grasshopper_ctr_acpkm_omac_cipher,
     &magma_kexp15_cipher,
@@ -295,6 +297,8 @@ static int gost_engine_finish(ENGINE* e) {
     return 1;
 }
 
+static void free_NIDs();
+
 static int gost_engine_destroy(ENGINE* e) {
     int i;
 
@@ -312,6 +316,7 @@ static int gost_engine_destroy(ENGINE* e) {
     }
 
     free_cached_groups();
+    free_NIDs();
 
 # ifndef BUILDING_GOST_PROVIDER
     ERR_unload_GOST_strings();
@@ -324,6 +329,35 @@ static int gost_engine_destroy(ENGINE* e) {
  * Following is the glue that populates the ENGINE structure and that
  * binds it to OpenSSL libraries
  */
+
+static GOST_NID_JOB *missing_NIDs[] = {
+    &kuznyechik_mgm_NID,
+    &magma_mgm_NID,
+};
+
+static int create_NIDs() {
+    int i;
+    int new_nid = OBJ_new_nid(OSSL_NELEM(missing_NIDs));
+    for (i = 0; i < OSSL_NELEM(missing_NIDs); i++) {
+        GOST_NID_JOB *job = missing_NIDs[i];
+        ASN1_OBJECT *obj =
+            ASN1_OBJECT_create(new_nid + i, NULL, 0, job->sn, job->ln);
+        job->asn1 = obj;
+        if (!obj || OBJ_add_object(obj) == NID_undef) {
+            OPENSSL_free(obj);
+            return 0;
+        }
+        (*missing_NIDs[i]->callback)(new_nid + i);
+    }
+    return 1;
+}
+
+static void free_NIDs() {
+    int i;
+    for (i = 0; i < OSSL_NELEM(missing_NIDs); i++) {
+        ASN1_OBJECT_free(missing_NIDs[i]->asn1);
+    }
+}
 
 # ifndef BUILDING_GOST_PROVIDER
 static
@@ -339,6 +373,10 @@ int populate_gost_engine(ENGINE* e) {
     }
     if (!ENGINE_set_name(e, engine_gost_name)) {
         fprintf(stderr, "ENGINE_set_name failed\n");
+        goto end;
+    }
+    if (!create_NIDs()) {
+        fprintf(stderr, "NID creation failed\n");
         goto end;
     }
     if (!ENGINE_set_digests(e, gost_digests)) {
