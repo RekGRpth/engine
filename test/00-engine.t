@@ -7,7 +7,7 @@ use Cwd 'abs_path';
 
 # prepare data for 
 
-open (my $F,">","testdata.dat");
+open (my $F,">","$ARGV[0]-testdata.dat");
 print $F "12345670" x 128;
 close $F;
 
@@ -40,7 +40,7 @@ if ( -f $engine . ".info") {
 
 $engine_info= <<EOINF;
 (gost) Reference implementation of GOST engine
- [gost89, gost89-cnt, gost89-cnt-12, gost89-cbc, kuznyechik-ecb, kuznyechik-cbc, kuznyechik-cfb, kuznyechik-ofb, kuznyechik-ctr, magma-ecb, kuznyechik-mgm, magma-cbc, magma-ctr, magma-ctr-acpkm, magma-ctr-acpkm-omac, magma-mgm, kuznyechik-ctr-acpkm, kuznyechik-ctr-acpkm-omac, magma-kexp15, kuznyechik-kexp15, md_gost94, gost-mac, md_gost12_256, md_gost12_512, gost-mac-12, magma-mac, kuznyechik-mac, kuznyechik-ctr-acpkm-omac, gost2001, id-GostR3410-2001DH, gost-mac, gost2012_256, gost2012_512, gost-mac-12, magma-mac, kuznyechik-mac, magma-ctr-acpkm-omac, kuznyechik-ctr-acpkm-omac]
+ [gost89, gost89-cnt, gost89-cnt-12, gost89-cbc, kuznyechik-ecb, kuznyechik-cbc, kuznyechik-cfb, kuznyechik-ofb, kuznyechik-ctr, magma-ecb, kuznyechik-mgm, magma-cbc, magma-ctr, magma-ctr-acpkm, magma-ctr-acpkm-omac, magma-mgm, kuznyechik-ctr-acpkm, kuznyechik-ctr-acpkm-omac, magma-kexp15, kuznyechik-kexp15, md_gost94, gost-mac, md_gost12_256, md_gost12_512, gost-mac-12, magma-mac, kuznyechik-mac, kuznyechik-ctr-acpkm-omac, magma-ctr-acpkm-omac, gost2001, id-GostR3410-2001DH, gost-mac, gost2012_256, gost2012_512, gost-mac-12, magma-mac, kuznyechik-mac, magma-ctr-acpkm-omac, kuznyechik-ctr-acpkm-omac]
 EOINF
 }
 
@@ -49,8 +49,8 @@ is(`openssl engine -c $engine`,
 $engine_info,
 "load engine without any config");
 
-is(`openssl dgst -engine $engine -md_gost94 testdata.dat`,
-"md_gost94(testdata.dat)= f7fc6d16a6a5c12ac4f7d320e0fd0d8354908699125e09727a4ef929122b1cae\n",
+is(`openssl dgst -engine $engine -md_gost94 $ARGV[0]-testdata.dat`,
+"md_gost94($ARGV[0]-testdata.dat)= f7fc6d16a6a5c12ac4f7d320e0fd0d8354908699125e09727a4ef929122b1cae\n",
 "compute digest without config");
 
 
@@ -72,17 +72,17 @@ is(`openssl engine -c $engine`,
 $engine_info,
 "load engine with config");
 
-is(`openssl dgst -md_gost94 testdata.dat`,
-"md_gost94(testdata.dat)= f7fc6d16a6a5c12ac4f7d320e0fd0d8354908699125e09727a4ef929122b1cae\n",
+is(`openssl dgst -md_gost94 $ARGV[0]-testdata.dat`,
+"md_gost94($ARGV[0]-testdata.dat)= f7fc6d16a6a5c12ac4f7d320e0fd0d8354908699125e09727a4ef929122b1cae\n",
 "compute digest with config without explicit engine param");
 
-is(`openssl dgst -engine $engine -md_gost94 testdata.dat`,
-"md_gost94(testdata.dat)= f7fc6d16a6a5c12ac4f7d320e0fd0d8354908699125e09727a4ef929122b1cae\n",
+is(`openssl dgst -engine $engine -md_gost94 $ARGV[0]-testdata.dat`,
+"md_gost94($ARGV[0]-testdata.dat)= f7fc6d16a6a5c12ac4f7d320e0fd0d8354908699125e09727a4ef929122b1cae\n",
 "compute digest with both config and explicit engine param");
 
 like(`openssl ciphers`, qr|GOST2001-GOST89-GOST89|, 'display GOST2001-GOST89-GOST89 cipher');
 
 like(`openssl ciphers`, qr|GOST2012-GOST8912-GOST8912|, 'display GOST2012-GOST8912-GOST8912 cipher');
 
-unlink('testdata.dat');
+unlink("$ARGV[0]-testdata.dat");
 unlink('test.cnf');
