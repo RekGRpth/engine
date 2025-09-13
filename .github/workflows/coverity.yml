@@ -16,7 +16,7 @@ jobs:
       GOST_PROVIDER_ENABLE_ONLINE_TESTS: 0
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
            submodules: true
 
