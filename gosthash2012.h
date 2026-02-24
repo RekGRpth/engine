@@ -53,11 +53,12 @@
 # define ALIGN(x) __attribute__ ((__aligned__(x)))
 #endif
 
-ALIGN(16)
-typedef union uint512_u {
+union ALIGN(16) uint512_u {
     unsigned long long QWORD[8];
     unsigned char B[64];
-} uint512_u;
+};
+
+typedef union uint512_u uint512_u;
 
 #include "gosthash2012_const.h"
 #include "gosthash2012_precalc.h"

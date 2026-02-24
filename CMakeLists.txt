@@ -194,9 +194,6 @@ set (GOST_OMAC_SOURCE_FILES
 
 set(GOST_LIB_SOURCE_FILES
         ${GOST_CORE_SOURCE_FILES}
-        ${GOST_89_SOURCE_FILES}
-        ${GOST_HASH_SOURCE_FILES}
-        ${GOST_HASH_2012_SOURCE_FILES}
         ${GOST_GRASSHOPPER_SOURCE_FILES}
         ${GOST_EC_SOURCE_FILES}
         ${GOST_OMAC_SOURCE_FILES}
@@ -313,8 +310,16 @@ add_test(NAME keyexpimp COMMAND test_keyexpimp)
 
 # test_gost89 is an internals testing program, it doesn't need a test env
 add_executable(test_gost89 test_gost89.c)
-target_link_libraries(test_gost89 gost_core gost_err)
+target_link_libraries(test_gost89 gost89)
 add_test(NAME gost89 COMMAND test_gost89)
+
+add_executable(test_gosthash test_gosthash.c)
+target_link_libraries(test_gosthash gosthash gost89)
+add_test(NAME gosthash COMMAND test_gosthash)
+
+add_executable(test_gosthash2012 test_gosthash2012.c)
+target_link_libraries(test_gosthash2012 gosthash2012)
+add_test(NAME gosthash2012 COMMAND test_gosthash2012)
 
 if(TLS13_PATCHED_OPENSSL)
   add_executable(test_mgm test_mgm.c)
@@ -368,12 +373,27 @@ set(BINARY_TESTS_TARGETS
         test_keyexpimp
         test_gost89
         test_tls
+        test_gosthash
+        test_gosthash2012
         )
 set_property(TARGET ${BINARY_TESTS_TARGETS} APPEND PROPERTY COMPILE_DEFINITIONS ENGINE_DIR="${OUTPUT_DIRECTORY}")
 
+add_library(gost89 STATIC ${GOST_89_SOURCE_FILES})
+set_target_properties(gost89 PROPERTIES POSITION_INDEPENDENT_CODE ON)
+target_link_libraries(gost89 PRIVATE OpenSSL::Crypto)
+
+add_library(gosthash STATIC ${GOST_HASH_SOURCE_FILES})
+set_target_properties(gosthash PROPERTIES POSITION_INDEPENDENT_CODE ON)
+target_link_libraries(gosthash PRIVATE OpenSSL::Crypto)
+
+add_library(gosthash2012 STATIC ${GOST_HASH_2012_SOURCE_FILES})
+set_target_properties(gosthash2012 PROPERTIES POSITION_INDEPENDENT_CODE ON)
+target_link_libraries(gosthash2012 PRIVATE OpenSSL::Crypto)
+
 add_library(gost_core STATIC ${GOST_LIB_SOURCE_FILES})
 set_target_properties(gost_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
-target_link_libraries(gost_core PRIVATE OpenSSL::Crypto)
+target_link_libraries(gost_core PRIVATE OpenSSL::Crypto gost89 gosthash gosthash2012)
+
 add_library(gost_err STATIC ${GOST_ERR_SOURCE_FILES})
 set_target_properties(gost_err PROPERTIES POSITION_INDEPENDENT_CODE ON)
 target_link_libraries(gost_err PRIVATE OpenSSL::Crypto)
@@ -426,14 +446,14 @@ set(GOST_SUM_SOURCE_FILES
         )
 
 add_executable(gostsum ${GOST_SUM_SOURCE_FILES})
-target_link_libraries(gostsum gost_core gost_err)
+target_link_libraries(gostsum gost89 gosthash)
 
 set(GOST_12_SUM_SOURCE_FILES
         gost12sum.c
         )
 
 add_executable(gost12sum ${GOST_12_SUM_SOURCE_FILES})
-target_link_libraries(gost12sum gost_core gost_err)
+target_link_libraries(gost12sum gosthash2012)
 
 set_source_files_properties(tags PROPERTIES GENERATED true)
 add_custom_target(tags
