@@ -18,7 +18,7 @@ jobs:
         env:
             PATCH_OPENSSL: 1
         steps:
-            - uses: actions/checkout@v3
+            - uses: actions/checkout@v4
               with:
                   submodules: true
             - run: .github/before_script.sh
@@ -31,7 +31,7 @@ jobs:
             CC: clang
             PATCH_OPENSSL: 1
         steps:
-            - uses: actions/checkout@v3
+            - uses: actions/checkout@v4
               with:
                   submodules: true
             - run: .github/before_script.sh
@@ -45,7 +45,7 @@ jobs:
             PATCH_OPENSSL: 1
             GOST_PROVIDER_ENABLE_ONLINE_TESTS: 0 # macOS runner has no network access to infotecs TLS1.3 server
         steps:
-            - uses: actions/checkout@v3
+            - uses: actions/checkout@v4
               with:
                   submodules: true
             - run: .github/before_script.sh
@@ -57,7 +57,7 @@ jobs:
         env:
             OPENSSL_BRANCH: master
         steps:
-            - uses: actions/checkout@v3
+            - uses: actions/checkout@v4
               with:
                   submodules: true
             - run: .github/before_script.sh
@@ -70,7 +70,7 @@ jobs:
             OPENSSL_BRANCH: master
             USE_RPATH:
         steps:
-            - uses: actions/checkout@v3
+            - uses: actions/checkout@v4
               with:
                   submodules: true
             - run: .github/before_script.sh
@@ -83,7 +83,7 @@ jobs:
             OPENSSL_BRANCH: master
             ASAN: -DASAN=1
         steps:
-            - uses: actions/checkout@v3
+            - uses: actions/checkout@v4
               with:
                   submodules: true
             - run: .github/before_script.sh
@@ -97,7 +97,7 @@ jobs:
             ASAN: -DASAN=1
             USE_RPATH:
         steps:
-            - uses: actions/checkout@v3
+            - uses: actions/checkout@v4
               with:
                   submodules: true
             - run: .github/before_script.sh
@@ -113,7 +113,7 @@ jobs:
             APT_INSTALL: gcc-multilib
             PATCH_OPENSSL: 1
         steps:
-            - uses: actions/checkout@v3
+            - uses: actions/checkout@v4
               with:
                   submodules: true
             - run: .github/before_script.sh
