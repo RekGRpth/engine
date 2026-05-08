@@ -1,0 +1,248 @@
+Provider-mode PBE for PKCS#12 with GOST symmetric ciphers
+(RFC 9337 / RFC 9548).
+
+Closes the libcrypto gaps that block `openssl pkcs12 -export`
+with provider-supplied ciphers (gostprov). Required on OpenSSL
+4.0 (engine API gone from apps/pkcs12.c) and on 3.x under
+provider config.
+
+Hunks:
+  - crypto/evp/{digest,evp_enc}.c — set_legacy_nid OBJ_txt2nid
+    fallback for provider-only algorithms.
+  - crypto/evp/evp_enc.c — EVP_CTRL_PBE_PRF_NID → "pbe-prf-nid"
+    OSSL_PARAM bridge.
+  - crypto/evp/evp_lib.c — alg_id_param probe through providers
+    for RFC 9337 §7.3 AlgorithmIdentifier (SEQUENCE { ukm }).
+  - crypto/evp/evp_lib.c, crypto/pkcs12/p12_decr.c —
+    cipher-with-mac slot + mac_len fallback (INACTIVE).
+
+Strictly additive — fallbacks fire only when the original path
+returned NULL / -1 / no answer; AES / RC2 / 3DES / ChaCha20 are
+byte-identical.
+
+INACTIVE: the cipher-with-mac slot in evp_cipher_cache_constants
+and the mac_len fallback in PKCS12_pbe_crypt_ex are the
+architectural prerequisite for OMAC PKCS#12 in provider mode.
+Activation requires moving gost2015_acpkm_omac_init
+(gost_gost2015.c) off legacy EVP_get_digestbynid /
+EVP_PKEY_new_mac_key to EVP_MAC_fetch.
+
+diff --git a/openssl/crypto/evp/digest.c b/openssl/crypto/evp/digest.c
+index 43fa6b1..e2c8eda 100644
+--- a/openssl/crypto/evp/digest.c
++++ b/openssl/crypto/evp/digest.c
+@@ -784,9 +784,21 @@ static void set_legacy_nid(const char *name, void *vlegacy_nid)
+     if (*legacy_nid == -1) /* We found a clash already */
+         return;
+ 
+-    if (legacy_method == NULL)
+-        return;
+-    nid = EVP_MD_nid(legacy_method);
++    if (legacy_method == NULL) {
++        /*
++         * Provider with no legacy registration: try to resolve `name`
++         * directly as an OID/SN. Mirrors the cipher-side fallback in
++         * crypto/evp/evp_enc.c. Strictly additive — only fires when
++         * OBJ_NAME_get already returned NULL.
++         */
++        ERR_set_mark();
++        nid = OBJ_txt2nid(name);
++        ERR_pop_to_mark();
++        if (nid == NID_undef)
++            return;
++    } else {
++        nid = EVP_MD_nid(legacy_method);
++    }
+     if (*legacy_nid != NID_undef && *legacy_nid != nid) {
+         *legacy_nid = -1;
+         return;
+diff --git a/openssl/crypto/evp/evp_enc.c b/openssl/crypto/evp/evp_enc.c
+index 723be6e..b64a968 100644
+--- a/openssl/crypto/evp/evp_enc.c
++++ b/openssl/crypto/evp/evp_enc.c
+@@ -957,6 +957,20 @@ int EVP_CIPHER_CTX_ctrl(EVP_CIPHER_CTX *ctx, int type, int arg, void *ptr)
+             ptr, sz);
+         break;
+ 
++    case EVP_CTRL_PBE_PRF_NID:
++        /*
++         * Translate to "pbe-prf-nid" OSSL_PARAM; only succeed if the
++         * provider actually wrote the integer. A success return without
++         * a written param would let PKCS5_pbe2_set_iv_ex think the
++         * provider answered, and prf_nid would stay -1 → fallback to
++         * SHA-1 instead of the OpenSSL 3.x default SHA-256.
++         */
++        params[0] = OSSL_PARAM_construct_int("pbe-prf-nid", (int *)ptr);
++        ret = evp_do_ciph_ctx_getparams(ctx->cipher, ctx->algctx, params);
++        if (ret <= 0 || !OSSL_PARAM_modified(&params[0]))
++            return 0;
++        return ret;
++
+     case EVP_CTRL_INIT:
+         /*
+          * EVP_CTRL_INIT is purely legacy, no provider counterpart.
+@@ -1329,9 +1343,24 @@ static void set_legacy_nid(const char *name, void *vlegacy_nid)
+ 
+     if (*legacy_nid == -1) /* We found a clash already */
+         return;
+-    if (legacy_method == NULL)
+-        return;
+-    nid = EVP_CIPHER_get_nid(legacy_method);
++    if (legacy_method == NULL) {
++        /*
++         * Provider with no legacy registration: try to resolve `name`
++         * directly as an OID/SN. Lets algorithm aliases of the form
++         * "shortname:1.2.3.4" reach a real NID even when no legacy
++         * EVP_add_cipher() ran. Strictly additive — only fires when
++         * OBJ_NAME_get already returned NULL. Errors from OBJ_txt2nid
++         * for unknown names are swallowed (mark/pop) since this is a
++         * best-effort lookup.
++         */
++        ERR_set_mark();
++        nid = OBJ_txt2nid(name);
++        ERR_pop_to_mark();
++        if (nid == NID_undef)
++            return;
++    } else {
++        nid = EVP_CIPHER_get_nid(legacy_method);
++    }
+     if (*legacy_nid != NID_undef && *legacy_nid != nid) {
+         *legacy_nid = -1;
+         return;
+diff --git a/openssl/crypto/evp/evp_lib.c b/openssl/crypto/evp/evp_lib.c
+index cc0d742..9848687 100644
+--- a/openssl/crypto/evp/evp_lib.c
++++ b/openssl/crypto/evp/evp_lib.c
+@@ -88,6 +88,25 @@ int evp_cipher_param_to_asn1_ex(EVP_CIPHER_CTX *c, ASN1_TYPE *type,
+         goto err;
+ 
+     cipher = c->cipher;
++    /*
++     * Provider with custom ASN.1 (RFC 9337 SEQUENCE { ukm }, etc.):
++     * try alg_id_param / algorithm-id-params OSSL_PARAM first. If
++     * the provider answers, use its DER. If not (default AES etc.),
++     * fall through to the original logic byte-identical. This avoids
++     * needing EVP_CIPH_FLAG_CUSTOM_ASN1 on cipher->flags, which has
++     * no provider-side mechanism to set in OpenSSL 3.x.
++     */
++    if (cipher->prov != NULL) {
++        X509_ALGOR alg;
++        alg.algorithm = NULL;
++        alg.parameter = type;
++        ERR_set_mark();
++        ret = EVP_CIPHER_CTX_get_algor_params(c, &alg);
++        ERR_pop_to_mark();
++        if (ret > 0)
++            return ret;
++        ret = -1;
++    }
+     /*
+      * For any implementation, we check the flag
+      * EVP_CIPH_FLAG_CUSTOM_ASN1.  If it isn't set, we apply
+@@ -152,6 +171,22 @@ int evp_cipher_asn1_to_param_ex(EVP_CIPHER_CTX *c, ASN1_TYPE *type,
+         goto err;
+ 
+     cipher = c->cipher;
++    /*
++     * Symmetric to evp_cipher_param_to_asn1_ex: try the provider's
++     * alg_id_param / algorithm-id-params setter first. If unhandled,
++     * fall through to the original mode-based decoding.
++     */
++    if (cipher->prov != NULL) {
++        X509_ALGOR alg;
++        alg.algorithm = NULL;
++        alg.parameter = type;
++        ERR_set_mark();
++        ret = EVP_CIPHER_CTX_set_algor_params(c, &alg);
++        ERR_pop_to_mark();
++        if (ret > 0)
++            return ret;
++        ret = -1;
++    }
+     /*
+      * For any implementation, we check the flag
+      * EVP_CIPH_FLAG_CUSTOM_ASN1.  If it isn't set, we apply
+@@ -305,12 +340,12 @@ int EVP_CIPHER_get_type(const EVP_CIPHER *cipher)
+ int evp_cipher_cache_constants(EVP_CIPHER *cipher)
+ {
+     int ok, aead = 0, custom_iv = 0, cts = 0, multiblock = 0, randkey = 0;
+-    int encrypt_then_mac = 0;
++    int encrypt_then_mac = 0, cipher_with_mac = 0;
+     size_t ivlen = 0;
+     size_t blksz = 0;
+     size_t keylen = 0;
+     unsigned int mode = 0;
+-    OSSL_PARAM params[11];
++    OSSL_PARAM params[12];
+ 
+     params[0] = OSSL_PARAM_construct_size_t(OSSL_CIPHER_PARAM_BLOCK_SIZE, &blksz);
+     params[1] = OSSL_PARAM_construct_size_t(OSSL_CIPHER_PARAM_IVLEN, &ivlen);
+@@ -326,7 +361,23 @@ int evp_cipher_cache_constants(EVP_CIPHER *cipher)
+         &randkey);
+     params[9] = OSSL_PARAM_construct_int(OSSL_CIPHER_PARAM_ENCRYPT_THEN_MAC,
+         &encrypt_then_mac);
+-    params[10] = OSSL_PARAM_construct_end();
++    /*
++     * Surface "cipher-with-mac" so providers (gost-engine
++     * RFC 9337/9548 OMAC ciphers) can advertise the trailing-tag flow
++     * that PKCS12_pbe_crypt_ex gates on EVP_CIPH_FLAG_CIPHER_WITH_MAC.
++     * Strictly additive — providers that don't recognise the param
++     * leave it 0 and the flag stays clear, matching pre-patch behaviour.
++     *
++     * INACTIVE: gost-engine's gost2015_acpkm_omac_init uses legacy
++     * EVP_get_digestbynid / EVP_PKEY_new_mac_key which return NULL
++     * under provider-only loading; OMAC export bails before this
++     * advertisement is ever consumed. Activate by refactoring
++     * gost2015_acpkm_omac_init to EVP_MAC_fetch + EVP_MAC_CTX_new
++     * (kuznyechik-mac / magma-mac are EVP_MACs in gost_prov_mac.c).
++     * See patch header INACTIVE block.
++     */
++    params[10] = OSSL_PARAM_construct_int("cipher-with-mac", &cipher_with_mac);
++    params[11] = OSSL_PARAM_construct_end();
+     ok = evp_do_ciph_getparams(cipher, params) > 0;
+     if (ok) {
+         cipher->block_size = (int)blksz;
+@@ -347,6 +398,8 @@ int evp_cipher_cache_constants(EVP_CIPHER *cipher)
+             cipher->flags |= EVP_CIPH_RAND_KEY;
+         if (encrypt_then_mac)
+             cipher->flags |= EVP_CIPH_FLAG_ENC_THEN_MAC;
++        if (cipher_with_mac)
++            cipher->flags |= EVP_CIPH_FLAG_CIPHER_WITH_MAC;
+         if (OSSL_PARAM_locate_const(EVP_CIPHER_gettable_ctx_params(cipher),
+                 OSSL_CIPHER_PARAM_ALGORITHM_ID_PARAMS))
+             cipher->flags |= EVP_CIPH_FLAG_CUSTOM_ASN1;
+diff --git a/openssl/crypto/pkcs12/p12_decr.c b/openssl/crypto/pkcs12/p12_decr.c
+index 15ad8e8..b204b2d 100644
+--- a/openssl/crypto/pkcs12/p12_decr.c
++++ b/openssl/crypto/pkcs12/p12_decr.c
+@@ -57,10 +57,29 @@ unsigned char *PKCS12_pbe_crypt_ex(const X509_ALGOR *algor,
+     if ((EVP_CIPHER_get_flags(EVP_CIPHER_CTX_get0_cipher(ctx))
+             & EVP_CIPH_FLAG_CIPHER_WITH_MAC)
+         != 0) {
+-        if (EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_TLS1_AAD, 0, &mac_len) < 0) {
++        int aad_rc = EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_TLS1_AAD, 0,
++            &mac_len);
++        if (aad_rc < 0) {
+             ERR_raise(ERR_LIB_PKCS12, ERR_R_INTERNAL_ERROR);
+             goto err;
+         }
++        /*
++         * Provider-mode fallback: the legacy engine ctrl
++         * handler writes mac_len via the `*(int *)ptr = mac_max_size`
++         * overload, but the libcrypto EVP_CTRL_AEAD_TLS1_AAD ->
++         * OSSL_PARAM translation in evp_enc.c does not preserve that
++         * semantic — it returns the value as the int rc instead, and
++         * leaves *ptr untouched. Pick rc up here when the engine ptr-
++         * write didn't happen.
++         *
++         * INACTIVE — see patch header INACTIVE block. The
++         * EVP_CIPH_FLAG_CIPHER_WITH_MAC gate above this branch is
++         * never set under provider-only loading because
++         * gost2015_acpkm_omac_init bails earlier. This fallback is
++         * harmless dead code until the OMAC init refactor lands.
++         */
++        if (mac_len == 0)
++            mac_len = aad_rc;
+ 
+         if (EVP_CIPHER_CTX_is_encrypting(ctx)) {
+             max_out_len += mac_len;

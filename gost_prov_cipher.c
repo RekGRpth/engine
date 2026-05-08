@@ -14,6 +14,8 @@
 #include <limits.h>
 #include "gost_prov.h"
 #include "gost_cipher_ctx.h"
+#include "gost_cryptopro_keybag.h"
+#include "gost_gost2015.h"
 #include "gost_lcl.h"
 
 /*
@@ -43,6 +45,56 @@ OSSL_CIPHER_PARAM_TLSTREE_MODE definition in OpenSSL is expected. TLSTREE modes 
 the provider for encryption/decryption operations. ."
 # endif
 # define OSSL_CIPHER_PARAM_TLSTREE_MODE "tlstree_mode"
+#endif
+
+/*
+ * Phase 16h: provider-mode "cipher-with-mac" advertisement so libcrypto
+ * (patched evp_cipher_cache_constants) can set EVP_CIPH_FLAG_CIPHER_WITH_MAC
+ * on the cached cipher->flags. PKCS12_pbe_crypt_ex gates the OMAC trailing-
+ * tag flow on that flag. No upstream OSSL_CIPHER_PARAM_CIPHER_WITH_MAC macro
+ * exists yet; the literal "cipher-with-mac" string is the shared contract
+ * between the libcrypto patch and this provider.
+ *
+ * ============================================================
+ * INACTIVE — does NOT enable provider-only OMAC end-to-end.
+ * ============================================================
+ *
+ * What this hunk does: makes the OMAC ciphers correctly advertise
+ * `cipher-with-mac=1` and answer the `tlsaadpad` GET with the right
+ * MAC tag length, so the PKCS12 trailing-tag flow in
+ * crypto/pkcs12/p12_decr.c CAN find them.
+ *
+ * Why it still doesn't work end-to-end: gost2015_acpkm_omac_init in
+ * gost_gost2015.c:158 calls two engine-API-only legacy entry points —
+ *
+ *     EVP_get_digestbynid(NID_kuznyechik_mac)   // returns NULL
+ *     EVP_PKEY_new_mac_key(NID_kuznyechik_mac,  // returns NULL
+ *                          NULL, key, keylen)
+ *
+ * In provider-only mode (every container in the dev matrix when
+ * loaded via gost-provider.cnf — including 3.4/3.6, not just 4.0)
+ * `kuznyechik-mac` and `magma-mac` are registered as EVP_MAC
+ * (gost_prov_mac.c:343 grasshopper_omac_mac_functions, and the
+ * magma counterpart). The provider does NOT legacy-register them
+ * via EVP_add_digest, so EVP_get_digestbynid returns NULL and
+ * gost2015_acpkm_omac_init bails before any of this OMAC param
+ * advertisement is exercised.
+ *
+ * To activate this hunk: refactor gost2015_acpkm_omac_init to use
+ *   EVP_MAC_fetch(libctx, "kuznyechik-mac" / "magma-mac", propq)
+ *   EVP_MAC_CTX_new + EVP_MAC_init + EVP_MAC_update + EVP_MAC_final
+ * Then propagate EVP_MAC_CTX *omac_ctx through the call chain in
+ * gost_grasshopper_cipher.c (the *_omac_set_priv_key / *_omac_init
+ * entry points) and gost_crypt.c (the magma-omac counterpart). The
+ * legacy EVP_MD * / EVP_PKEY * pair currently held in the cipher
+ * context becomes a single EVP_MAC_CTX *.
+ *
+ * Until that refactor lands, OMAC support via the provider is out
+ * of plan scope; the hunk stays as architectural readiness so the
+ * libcrypto-side patches don't bit-rot.
+ */
+#ifndef OSSL_CIPHER_PARAM_CIPHER_WITH_MAC
+# define OSSL_CIPHER_PARAM_CIPHER_WITH_MAC "cipher-with-mac"
 #endif
 
 /*
@@ -141,6 +193,19 @@ static int cipher_get_params(const GOST_cipher *c, OSSL_PARAM params[])
             && !OSSL_PARAM_set_uint(p, (unsigned int)GOST_cipher_mode(c)))
         || ((p = OSSL_PARAM_locate(params, OSSL_CIPHER_PARAM_AEAD)) != NULL
             && (c == &magma_mgm_cipher || c == &grasshopper_mgm_cipher)
+            && !OSSL_PARAM_set_int(p, 1))
+        /*
+         * INACTIVE (Phase 16h) — see header comment near
+         * OSSL_CIPHER_PARAM_CIPHER_WITH_MAC #define. This advertisement
+         * is correct architecturally, but provider-only OMAC export
+         * still fails earlier in gost2015_acpkm_omac_init due to legacy
+         * EVP_get_digestbynid / EVP_PKEY_new_mac_key returning NULL.
+         * Activates only after the EVP_MAC_fetch refactor lands.
+         */
+        || ((p = OSSL_PARAM_locate(params,
+                OSSL_CIPHER_PARAM_CIPHER_WITH_MAC)) != NULL
+            && (c == &magma_ctr_acpkm_omac_cipher
+                || c == &grasshopper_ctr_acpkm_omac_cipher)
             && !OSSL_PARAM_set_int(p, 1)))
         return 0;
     return 1;
@@ -153,22 +218,29 @@ static int cipher_get_ctx_params(void *vgctx, OSSL_PARAM params[])
 
     if (!cipher_get_params(gctx->cipher, params))
         return 0;
-    if ((p = OSSL_PARAM_locate(params, "alg_id_param")) != NULL) {
+    /*
+     * Only answer alg_id_param for ciphers that actually have a custom
+     * ASN.1 setter — the four CTR-ACPKM and a few others. For ciphers
+     * whose AI parameters are just the IV, leave the param untouched so
+     * the libcrypto fall-through (default mode-based handling) takes over.
+     */
+    if ((p = OSSL_PARAM_locate(params, "alg_id_param")) != NULL
+        && GOST_cipher_set_asn1_parameters_fn(gctx->cipher) != NULL) {
         ASN1_TYPE *algidparam = NULL;
         unsigned char *der = NULL;
         int derlen = 0;
         int ret;
 
         ret = (algidparam = ASN1_TYPE_new()) != NULL
-            && (GOST_cipher_set_asn1_parameters_fn(gctx->cipher) == NULL
-                || GOST_cipher_set_asn1_parameters_fn(gctx->cipher)(gctx->cctx,
-                                                                    algidparam) > 0)
+            && GOST_cipher_set_asn1_parameters_fn(gctx->cipher)(gctx->cctx,
+                                                                algidparam) > 0
             && (derlen = i2d_ASN1_TYPE(algidparam, &der)) >= 0
             && OSSL_PARAM_set_octet_string(p, der, (size_t)derlen);
 
         OPENSSL_free(der);
         ASN1_TYPE_free(algidparam);
-        return ret;
+        if (!ret)
+            return 0;
     }
     if ((p = OSSL_PARAM_locate(params, "updated-iv")) != NULL) {
         const void *iv = GOST_cipher_ctx_iv(gctx->cctx);
@@ -185,6 +257,61 @@ static int cipher_get_ctx_params(void *vgctx, OSSL_PARAM params[])
         if (!OSSL_PARAM_get_octet_string_ptr(p, (const void **)&tag, &taglen)
             || GOST_cipher_ctx_ctrl(gctx->cctx, EVP_CTRL_AEAD_GET_TAG,
                                     (int)taglen, tag) <= 0)
+            return 0;
+    }
+    /*
+     * Phase 16h: report OMAC tag length on the "tlsaadpad" GET issued by
+     * libcrypto's EVP_CTRL_AEAD_TLS1_AAD translation in evp_enc.c. The
+     * patched p12_decr.c picks up this value as the trailing-MAC length
+     * via the `if (mac_len == 0) mac_len = rc;` fallback. Mirrors the
+     * engine-side `EVP_CTRL_AEAD_TLS1_AAD arg=0` overload (writes
+     * MAC_MAX_SIZE into the int* and returns it).
+     *
+     * INACTIVE — this getter answers correctly, but provider-only OMAC
+     * export never reaches PKCS12_pbe_crypt_ex's trailing-tag branch:
+     * gost2015_acpkm_omac_init (gost_gost2015.c:158) bails earlier in
+     * EVP_CipherInit_ex because EVP_get_digestbynid(NID_kuznyechik_mac)
+     * returns NULL on provider-only OpenSSL (kuznyechik-mac is an
+     * EVP_MAC, gost_prov_mac.c:343, not a legacy MD). Refactor the
+     * OMAC init to EVP_MAC_fetch + EVP_MAC_CTX_new before relying on
+     * this hunk. See header comment near OSSL_CIPHER_PARAM_CIPHER_WITH_MAC.
+     */
+    if ((p = OSSL_PARAM_locate(params, OSSL_CIPHER_PARAM_AEAD_TLS1_AAD_PAD))
+            != NULL) {
+        size_t mac_len = 0;
+
+        if (gctx->cipher == &grasshopper_ctr_acpkm_omac_cipher)
+            mac_len = KUZNYECHIK_MAC_MAX_SIZE;
+        else if (gctx->cipher == &magma_ctr_acpkm_omac_cipher)
+            mac_len = MAGMA_MAC_MAX_SIZE;
+        else
+            return 0;
+        if (!OSSL_PARAM_set_size_t(p, mac_len))
+            return 0;
+    }
+    /*
+     * RFC 9337/9548 PBES2 default PRF for the four CTR-ACPKM ciphers.
+     * Reached via the patched EVP_CTRL_PBE_PRF_NID -> "pbe-prf-nid"
+     * OSSL_PARAM translation in libcrypto; default & env knob mirror
+     * the engine-side ctl so engine and provider answer identically.
+     */
+    if ((p = OSSL_PARAM_locate(params, "pbe-prf-nid")) != NULL
+        && (gctx->cipher == &magma_ctr_acpkm_cipher
+            || gctx->cipher == &magma_ctr_acpkm_omac_cipher
+            || gctx->cipher == &grasshopper_ctr_acpkm_cipher
+            || gctx->cipher == &grasshopper_ctr_acpkm_omac_cipher)) {
+        int nid = NID_id_tc26_hmac_gost_3411_2012_512;
+        const char *env = get_gost_engine_param(GOST_PARAM_PBE_PARAMS);
+
+        if (env != NULL) {
+            if (strcmp(env, "md_gost12_256") == 0)
+                nid = NID_id_tc26_hmac_gost_3411_2012_256;
+            else if (strcmp(env, "md_gost12_512") == 0)
+                nid = NID_id_tc26_hmac_gost_3411_2012_512;
+            else if (strcmp(env, "md_gost94") == 0)
+                nid = NID_id_HMACGostR3411_94;
+        }
+        if (!OSSL_PARAM_set_int(p, nid))
             return 0;
     }
     return 1;
@@ -385,6 +512,14 @@ const OSSL_ALGORITHM GOST_prov_ciphers[] = {
     { SN_kuznyechik_ctr_acpkm_omac ":1.2.643.7.1.1.5.2.2", NULL,
       grasshopper_ctr_acpkm_omac_cipher_functions },
     { "kuznyechik-mgm", NULL, grasshopper_mgm_cipher_functions },
+    /* CryptoPro proprietary keybag CEK-unwrap — file-internal cipher
+     * referenced by the EVP_PBE entry for OID 1.2.840.113549.1.12.1.80
+     * (registered in 15a-6 from OSSL_provider_init). The OID
+     * 1.2.643.7.1.99.1.1 lives only in this provider's NID table; it
+     * is never serialised on the wire. Implementation in
+     * gost_cryptopro_keybag.c. */
+    { SN_CRYPTOPRO_KEYBAG_UNWRAP ":" OID_CRYPTOPRO_KEYBAG_UNWRAP, NULL,
+      cryptopro_keybag_unwrap_cipher_functions },
 #if 0                           /* Not yet implemented */
     { SN_magma_kexp15 ":1.2.643.7.1.1.7.1.1", NULL,
       magma_kexp15_cipher_functions },
