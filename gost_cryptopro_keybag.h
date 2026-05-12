@@ -55,17 +55,6 @@ int bind_cryptopro_keybag_oids(void);
  * the chain returns, after `bind_cryptopro_keybag_oids`). */
 int register_cryptopro_keybag_pbe(void);
 
-/* PBE algorithm de-registration. Calls `EVP_PBE_cleanup()` —
- * libcrypto's only public PBE cleanup is wholesale (drops every entry
- * added via `EVP_PBE_alg_add_type`). Acceptable in practice: this
- * runs from `gost_teardown` at process exit, where libcrypto would
- * wipe the table anyway, OR during a deliberate
- * `OSSL_PROVIDER_unload` + reload cycle, where re-registering is the
- * desired behaviour. Documented limitation: a third-party provider
- * that also uses `EVP_PBE_alg_add_type` and unloads while gostprov is
- * still active would lose its entries. */
-void unregister_cryptopro_keybag_pbe(void);
-
 /* Provider cipher dispatch table for `cryptopro-keybag-unwrap`
  * (NID resolved via OID 1.2.643.7.1.99.1.1). Decrypt-only.
  * Callbacks live in `gost_cryptopro_keybag.c`; this declaration

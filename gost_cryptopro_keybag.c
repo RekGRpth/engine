@@ -189,14 +189,6 @@ int register_cryptopro_keybag_pbe(void)
                                 cryptopro_keybag_keygen);
 }
 
-void unregister_cryptopro_keybag_pbe(void)
-{
-    /* Wholesale wipe — libcrypto exposes no targeted-remove API. See
-     * the .h file's contract note for why this is acceptable in our
-     * provider lifecycle. */
-    EVP_PBE_cleanup();
-}
-
 /* ASCII-fast UTF-8 → UTF-16LE: each input byte < 0x80 becomes
  * (byte, 0x00). Returns malloc'd buffer of size 2*passlen and writes
  * the length to *out_len. Caller frees with OPENSSL_free.

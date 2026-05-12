@@ -135,7 +135,6 @@ static void gost_teardown(void *vprovctx)
 {
     GOST_prov_deinit_digests();
     GOST_prov_deinit_macs();
-    unregister_cryptopro_keybag_pbe();
     provider_ctx_free(vprovctx);
 }
 
