@@ -256,7 +256,12 @@ static int extract_pbes2_fp(const unsigned char *file, size_t flen, int idx,
     out->salt_len = ASN1_STRING_length(pbkdf2->salt->value.octet_string);
     out->iter = ASN1_INTEGER_get(pbkdf2->iter);
 
-    /* PBKDF2.prf is X509_ALGOR. */
+    /* PBKDF2.prf is X509_ALGOR. Field is DEFAULT-typed in RFC 8018 §A.2
+     * (DEFAULT algid-hmacWithSHA1), so d2i may leave it NULL when the
+     * encoder omitted it. For RFC 9337 §7.4 we mandate an explicit GOST
+     * HMAC OID; absence is a structural defect — fail the case rather
+     * than crash on X509_ALGOR_get0(NULL). */
+    if (pbkdf2->prf == NULL) goto out;
     {
         const ASN1_OBJECT *prf_oid;
         X509_ALGOR_get0(&prf_oid, NULL, NULL, pbkdf2->prf);
