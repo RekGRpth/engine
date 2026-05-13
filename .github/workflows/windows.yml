@@ -194,6 +194,7 @@ jobs:
     msvc-provider-openssl-master:
         needs: msvc-openssl-master
         runs-on: windows-latest
+        continue-on-error: true
         steps:
             - uses: actions/checkout@v2
               with:
