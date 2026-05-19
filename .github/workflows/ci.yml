@@ -95,7 +95,6 @@ jobs:
 
     gcc-provider-openssl-master:
         runs-on: ubuntu-latest
-        if: false
         env:
             OPENSSL_BRANCH: master
         steps:

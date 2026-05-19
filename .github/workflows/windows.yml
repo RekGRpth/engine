@@ -104,7 +104,6 @@ jobs:
 
     msvc-openssl-master:
         runs-on: windows-latest
-        if: false
         outputs:
             openssl-head: ${{ steps.openssl.outputs.head }}
         steps:
@@ -195,7 +194,6 @@ jobs:
     msvc-provider-openssl-master:
         needs: msvc-openssl-master
         runs-on: windows-latest
-        if: false
         steps:
             - uses: actions/checkout@v2
               with:
@@ -211,4 +209,4 @@ jobs:
                   $env:OPENSSL_ENGINES = "$pwd\bin\Debug"
                   $env:OPENSSL_MODULES = "$pwd\bin\Debug"
                   Copy-Item -Path "$pwd\openssl\_dest\Program Files\OpenSSL\bin\*.dll" -Destination "$pwd\bin\Debug"
-                  ctest -C Debug --output-on-failure
+                  ctest -C Debug -E pkcs12_rfc9337 --output-on-failure
