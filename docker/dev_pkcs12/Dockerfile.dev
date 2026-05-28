@@ -1,0 +1,38 @@
+FROM ubuntu:24.04 AS base
+
+ARG OPENSSL_VERSION=openssl-3.4.0
+ARG DEBIAN_FRONTEND=noninteractive
+
+LABEL gost-engine.openssl-version="${OPENSSL_VERSION}"
+ENV OPENSSL_BUILD_VERSION="${OPENSSL_VERSION}"
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential gcc g++ clang clang-tools clang-tidy clang-format \
+        cmake ninja-build pkg-config perl \
+        git ca-certificates wget curl \
+        gdb valgrind strace ltrace \
+        cppcheck \
+        tcl tcllib tcl-dev \
+        vim-tiny less procps file \
+    && rm -rf /var/lib/apt/lists/*
+
+# OpenSSL is no longer baked into the image. Source is bind-mounted at
+# /workspace/openssl-src by docker-compose; entrypoint.sh runs the
+# initial out-of-tree build into /opt/openssl on first start (cached
+# afterwards via a per-version named volume).
+ENV PATH="/opt/openssl/bin:${PATH}"
+ENV LD_LIBRARY_PATH="/opt/openssl/lib64:/opt/openssl/lib"
+ENV PKG_CONFIG_PATH="/opt/openssl/lib64/pkgconfig:/opt/openssl/lib/pkgconfig"
+ENV OPENSSL_ROOT_DIR="/opt/openssl"
+ENV OPENSSL_ENGINES_DIR="/opt/openssl/lib64/engines-3"
+ENV OPENSSL_CONF="/opt/openssl/gost-engine.cnf"
+
+WORKDIR /workspace/src
+
+# Entrypoint lives in the bind-mounted source tree
+# (`/workspace/src/docker/dev_pkcs12/scripts/entrypoint.sh`) so iterating on
+# it does not require rebuilding the image. Don't fail container start
+# on build errors — drop into `tail -f /dev/null` so `docker exec`
+# remains usable for diagnostics.
+ENTRYPOINT ["bash", "-lc", "/workspace/src/docker/dev_pkcs12/scripts/entrypoint.sh || echo '[entrypoint] build failed — container kept alive for diagnostics'; exec \"$@\"", "--"]
+CMD ["tail", "-f", "/dev/null"]

@@ -167,8 +167,20 @@ int gost2015_acpkm_omac_init(int nid, int enc, const unsigned char *inkey,
     if (md == NULL)
         return 0;
 
+    /*
+     * Lazy kdf_seed init for the encrypt path: only generate a fresh
+     * random seed when the caller's slot is still all-zero. Callers
+     * that have already populated kdf_seed (e.g. via PBES2's
+     * AlgorithmIdentifier round-trip — the no-key cipher init in
+     * PKCS5_pbe2_set_iv_ex emits the seed via the cipher's
+     * set_asn1_parameters callback before the key-bearing init
+     * lands here) keep their value. Without this, encrypt would
+     * regenerate kdf_seed *after* the on-wire AlgorithmIdentifier
+     * was frozen, making decrypt derive different keys → OMAC
+     * mismatch on PKCS#12 round-trip.
+     */
     if (enc) {
-        if (RAND_bytes(kdf_seed, 8) != 1)
+        if (init_zero_kdf_seed(kdf_seed) != 1)
             return 0;
     }
 

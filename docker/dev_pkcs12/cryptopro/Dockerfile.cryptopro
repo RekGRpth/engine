@@ -1,0 +1,84 @@
+# CryptoPro CSP 5.0.13003 cross-validation container.
+#
+# Built from the deb-only archive expected at
+# docker/dev_pkcs12/cryptopro/cryptopro_linux-amd64_deb_*.tgz. The base is
+# debian:bookworm because the archive's lsb-cprocsp-base depends on
+# dpkg/lsb-base and is built for Debian/Ubuntu glibc; bookworm is the
+# current Debian stable. Bullseye is the documented fallback if any
+# package fails to resolve.
+#
+# The image installs CSP, exposes the CLI on $PATH, and runs an
+# entrypoint that logs license state, seeds the CPSD software RNG,
+# and drops the interactive BIO_TUI. CMD keeps the container alive;
+# day-to-day usage is `docker compose exec cryptopro …`.
+
+FROM debian:bookworm AS base
+
+ARG DEBIAN_FRONTEND=noninteractive
+
+LABEL gost-engine.cryptopro="5.0.13003"
+
+# Runtime deps for CSP 5.0.13003 install.sh and the lsb-cprocsp-*
+# debs it pulls in. ca-certificates / curl are kept for downstream
+# operations (license checks, optional package installs).
+# libgcrypt20 / libpcsclite1 are common runtime libs referenced by
+# the CSP debs; pre-installing avoids a second apt round if
+# install.sh would otherwise pull them.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+        dpkg \
+        lsb-base \
+        ca-certificates \
+        curl \
+        libgcrypt20 \
+        libpcsclite1 \
+ && rm -rf /var/lib/apt/lists/*
+
+# Stage the deb archive into the image. The path is relative to the
+# docker build context, which is `docker/dev_pkcs12/` (compose `context: .`
+# from docker-compose.yml in docker/dev_pkcs12/). Place your CryptoPro CSP
+# archive at docker/dev_pkcs12/cryptopro/cryptopro_linux-amd64_deb_*.tgz
+# before building this service.
+COPY cryptopro/cryptopro_linux-amd64_deb_*.tgz /tmp/cryptopro.tgz
+
+# Unpack and run the official installer in unattended mode (kc1 =
+# default class-1 KC profile, --yes accepts the EULA / installs
+# every selected component without prompting). On non-zero exit dump
+# /var/log/dpkg.log so a failed build is debuggable from the layer
+# output.
+RUN set -e; \
+    cd /tmp; \
+    tar -xzf cryptopro.tgz; \
+    cd linux-amd64_deb; \
+    if ! ./install.sh kc1 --yes; then \
+        echo '[Dockerfile.cryptopro] install.sh kc1 --yes FAILED'; \
+        cat /var/log/dpkg.log || true; \
+        exit 1; \
+    fi; \
+    rm -rf /tmp/linux-amd64_deb /tmp/cryptopro.tgz
+
+# CSP 5 amd64 lays its CLI tools (certmgr, cryptcp, csptest, csptestf,
+# cpconfig, …) under /opt/cprocsp/bin/amd64 and admin tools (cpconfig,
+# cpinstance) under /opt/cprocsp/sbin/amd64. `cryptcp` is included in
+# the kc1 profile, so no `cprocsp-pki-cades-64` follow-up needed.
+ENV PATH="/opt/cprocsp/bin/amd64:/opt/cprocsp/sbin/amd64:${PATH}"
+
+# Bake the test gamma (CPSD software RNG seed) into the image so a
+# fresh `docker compose up cryptopro` is keygen-ready without manual
+# `docker cp`. Out-of-the-box CSP cannot
+# `csptest -keyset -newkeyset` because /var/opt/cprocsp/dsrf/db{1,2}/
+# are empty and the only working RNG (BIO_TUI) is interactive. The
+# entrypoint copies kis_1 into /var/opt/cprocsp/dsrf/db{1,2}/ on first
+# start. Override-friendly: a user can place a fresh genkpim portion
+# in docker/dev_pkcs12/cryptopro/test_gamma/ pre-build, or volume-mount their
+# own /var/opt/cprocsp/dsrf at runtime.
+COPY cryptopro/test_gamma /opt/cprocsp/share/test_gamma
+
+# Entrypoint: log license state, seed CPSD gamma, drop interactive
+# BIO_TUI, ensure /workspace/data exists, then hand off to CMD.
+# Long-lived container; day-to-day usage is
+# `docker compose exec cryptopro <cli>`.
+COPY cryptopro/entrypoint.cryptopro.sh /usr/local/bin/entrypoint.cryptopro.sh
+RUN chmod +x /usr/local/bin/entrypoint.cryptopro.sh
+ENTRYPOINT ["/usr/local/bin/entrypoint.cryptopro.sh"]
+CMD ["sleep", "infinity"]

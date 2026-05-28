@@ -164,15 +164,24 @@ const OSSL_ALGORITHM GOST_prov_digests[] = {
      * https://www.ietf.org/archive/id/draft-deremin-rfc4491-bis-06.txt
      * (is there not an RFC namming these?)
      */
-    { SN_id_GostR3411_2012_256":id-tc26-gost3411-12-256:1.2.643.7.1.1.2.2", NULL,
+    /*
+     * The OBJ long-name alias (LN_*) is included so that provider lookups
+     * via the long name resolve — OpenSSL's PKCS12 internals call
+     * OBJ_obj2txt(macoid, 0) which prefers LN over SN/OID, and the result
+     * is then handed to EVP_MD_fetch.
+     */
+    { SN_id_GostR3411_2012_256":id-tc26-gost3411-12-256:1.2.643.7.1.1.2.2:"
+      LN_id_GostR3411_2012_256, NULL,
       GostR3411_2012_256_digest_functions,
       "GOST R 34.11-2012 with 256 bit hash" },
-    { SN_id_GostR3411_2012_512":id-tc26-gost3411-12-512:1.2.643.7.1.1.2.3", NULL,
+    { SN_id_GostR3411_2012_512":id-tc26-gost3411-12-512:1.2.643.7.1.1.2.3:"
+      LN_id_GostR3411_2012_512, NULL,
       GostR3411_2012_512_digest_functions,
       "GOST R 34.11-2012 with 512 bit hash" },
 
     /* Described in RFC 5831, first name from RFC 4357, section 10.4 */
-    { SN_id_GostR3411_94":id-GostR3411-94:1.2.643.2.2.9", NULL,
+    { SN_id_GostR3411_94":id-GostR3411-94:1.2.643.2.2.9:"
+      LN_id_GostR3411_94, NULL,
       GostR3411_94_digest_functions, "GOST R 34.11-94" },
     { NULL , NULL, NULL }
 };

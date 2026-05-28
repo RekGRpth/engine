@@ -1232,6 +1232,24 @@ static int magma_cipher_ctl(GOST_cipher_ctx *ctx, int type, int arg, void *ptr)
                 return -1;
             }
             break;
+    case EVP_CTRL_PBE_PRF_NID:
+        if (ptr) {
+            const char *params = get_gost_engine_param(GOST_PARAM_PBE_PARAMS);
+            int nid = NID_id_tc26_hmac_gost_3411_2012_512;
+
+            if (params) {
+                if (!strcmp("md_gost12_256", params))
+                    nid = NID_id_tc26_hmac_gost_3411_2012_256;
+                else if (!strcmp("md_gost12_512", params))
+                    nid = NID_id_tc26_hmac_gost_3411_2012_512;
+                else if (!strcmp("md_gost94", params))
+                    nid = NID_id_HMACGostR3411_94;
+            }
+            *((int *)ptr) = nid;
+            return 1;
+        } else {
+            return 0;
+        }
     case EVP_CTRL_KEY_MESH:
         {
             struct ossl_gost_cipher_ctx *c =
@@ -1324,6 +1342,34 @@ static int magma_cipher_ctl_acpkm_omac(GOST_cipher_ctx *ctx, int type, int arg, 
 			}
 			return EVP_MD_CTX_copy(out_cctx->omac_ctx, in_cctx->omac_ctx);
 		}
+        /*
+         * AEAD ctrl trio used by stock crypto/pkcs12/p12_decr.c when
+         * EVP_CIPH_FLAG_CIPHER_WITH_MAC is set on the cipher. Mirrors
+         * the Kuznyechik OMAC trio in gost_grasshopper_cipher.c, with
+         * MAGMA_MAC_MAX_SIZE = 8 as the tag length.
+         */
+        case EVP_CTRL_AEAD_TLS1_AAD: {
+            if (arg != 0 || ptr == NULL)
+                return -1;
+            *(int *)ptr = MAGMA_MAC_MAX_SIZE;
+            return 1;
+        }
+        case EVP_CTRL_AEAD_SET_TAG: {
+            struct ossl_gost_cipher_ctx *c = GOST_cipher_ctx_get_cipher_data(ctx);
+            if (arg <= 0 || arg > MAGMA_MAC_MAX_SIZE
+                || ptr == NULL || GOST_cipher_ctx_encrypting(ctx))
+                return 0;
+            memcpy(c->tag, ptr, arg);
+            return 1;
+        }
+        case EVP_CTRL_AEAD_GET_TAG: {
+            struct ossl_gost_cipher_ctx *c = GOST_cipher_ctx_get_cipher_data(ctx);
+            if (arg <= 0 || arg > MAGMA_MAC_MAX_SIZE
+                || ptr == NULL || !GOST_cipher_ctx_encrypting(ctx))
+                return 0;
+            memcpy(ptr, c->tag, arg);
+            return 1;
+        }
 		default:
 			return magma_cipher_ctl(ctx, type, arg, ptr);
 			break;
@@ -1426,6 +1472,16 @@ static int magma_set_asn1_parameters (GOST_cipher_ctx *ctx, ASN1_TYPE *params)
 {
   struct ossl_gost_cipher_ctx *c = GOST_cipher_ctx_get_cipher_data(ctx);
 	c->key_meshing = 8192;
+
+	/*
+	 * Same lazy kdf_seed init as in gost_grasshopper_set_asn1_parameters:
+	 * PKCS5_pbe2_set_iv_ex runs us pre-key to freeze the on-wire UKM, so
+	 * the seed must be non-zero before we serialize. The OMAC key-init in
+	 * gost2015_acpkm_omac_init now uses init_zero_kdf_seed too, so the
+	 * value picked here survives into the actual encrypt.
+	 */
+	if (init_zero_kdf_seed(c->kdf_seed) != 1)
+		return 0;
 
 	return gost2015_set_asn1_params(params, GOST_cipher_ctx_original_iv(ctx), 4,
 		c->kdf_seed);

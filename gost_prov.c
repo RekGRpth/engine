@@ -14,6 +14,7 @@
 #include "gost_prov_tls.h"
 #include "gost_prov_digest.h"
 #include "gost_prov_mac.h"
+#include "gost_cryptopro_keybag.h"
 #include "gost_lcl.h"
 #include "prov/err.h"           /* libprov err functions */
 
@@ -183,6 +184,18 @@ int OSSL_provider_init(const OSSL_CORE_HANDLE *core,
 
     GOST_prov_init_digests();
     GOST_prov_init_macs();
+
+    /* CryptoPro proprietary keybag PBE — wires OID 1.2.840.113549.1.12.1.80
+     * into libcrypto's EVP_PBE table so `openssl pkcs12 -in csp.pfx`
+     * dispatches through our cipher (15a-5). OID/NID registration
+     * happens first (idempotent across multiple provider loads), then
+     * the EVP_PBE_alg_add_type tuple binds the keygen. */
+    if (!bind_cryptopro_keybag_oids()
+        || !register_cryptopro_keybag_pbe()) {
+        provider_ctx_free(*vprovctx);
+        *vprovctx = NULL;
+        return 0;
+    }
 
     *out = provider_functions;
     return 1;

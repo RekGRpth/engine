@@ -1,0 +1,22 @@
+FROM ubuntu:24.04
+
+ARG OPENSSL_VERSION=openssl-3.4.0
+ARG DEBIAN_FRONTEND=noninteractive
+
+LABEL gost-engine.openssl-version="${OPENSSL_VERSION}"
+ENV OPENSSL_BUILD_VERSION="${OPENSSL_VERSION}"
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential cmake ninja-build git ca-certificates pkg-config perl \
+        tcl tcllib tcl-dev valgrind \
+    && rm -rf /var/lib/apt/lists/*
+
+# OpenSSL is bind-mounted at /workspace/openssl-src and built at
+# container start by entrypoint.sh; see Dockerfile.dev for rationale.
+ENV PATH="/opt/openssl/bin:${PATH}"
+ENV LD_LIBRARY_PATH="/opt/openssl/lib64:/opt/openssl/lib"
+ENV OPENSSL_ROOT_DIR="/opt/openssl"
+ENV OPENSSL_ENGINES_DIR="/opt/openssl/lib64/engines-3"
+ENV OPENSSL_CONF="/opt/openssl/gost-engine.cnf"
+
+WORKDIR /workspace/src
