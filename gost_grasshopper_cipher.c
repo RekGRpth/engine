@@ -992,6 +992,17 @@ static int gost_grasshopper_set_asn1_parameters(GOST_cipher_ctx *ctx, ASN1_TYPE 
     if (GOST_cipher_ctx_mode(ctx) == EVP_CIPH_CTR_MODE) {
         gost_grasshopper_cipher_ctx_ctr *ctr = GOST_cipher_ctx_get_cipher_data(ctx);
 
+        /*
+         * Ensure kdf_seed is non-zero before serializing. PKCS5_pbe2_set_iv_ex
+         * runs us with key=NULL/enc=0 to freeze the AlgorithmIdentifier *before*
+         * the encrypt-side key init regenerates the seed. Generate it here so
+         * the wire UKM matches what the subsequent encrypt will use (the
+         * key-bearing init in gost2015_acpkm_omac_init now skips RAND_bytes
+         * when kdf_seed is already non-zero).
+         */
+        if (init_zero_kdf_seed(ctr->kdf_seed) != 1)
+            return 0;
+
         /* CMS implies 256kb section_size */
         ctr->section_size = 256*1024;
 
@@ -1133,6 +1144,24 @@ static int gost_grasshopper_cipher_ctl(GOST_cipher_ctx *ctx, int type, int arg, 
             }
             break;
         }
+    case EVP_CTRL_PBE_PRF_NID:
+        if (ptr) {
+            const char *params = get_gost_engine_param(GOST_PARAM_PBE_PARAMS);
+            int nid = NID_id_tc26_hmac_gost_3411_2012_512;
+
+            if (params) {
+                if (!strcmp("md_gost12_256", params))
+                    nid = NID_id_tc26_hmac_gost_3411_2012_256;
+                else if (!strcmp("md_gost12_512", params))
+                    nid = NID_id_tc26_hmac_gost_3411_2012_512;
+                else if (!strcmp("md_gost94", params))
+                    nid = NID_id_HMACGostR3411_94;
+            }
+            *((int *)ptr) = nid;
+            return 1;
+        } else {
+            return 0;
+        }
     case EVP_CTRL_KEY_MESH:{
             gost_grasshopper_cipher_ctx_ctr *c =
                 GOST_cipher_ctx_get_cipher_data(ctx);
@@ -1220,6 +1249,38 @@ static int gost_grasshopper_cipher_ctl(GOST_cipher_ctx *ctx, int type, int arg, 
             return 1;
         }
 #endif
+    /*
+     * AEAD ctrl trio for *-ctr-acpkm-omac, used by stock OpenSSL's
+     * crypto/pkcs12/p12_decr.c when EVP_CIPH_FLAG_CIPHER_WITH_MAC is
+     * set. Lets PKCS12_pbe_crypt_ex split off / reattach the trailing
+     * OMAC tag without bag-format-specific helpers.
+     */
+    case EVP_CTRL_AEAD_TLS1_AAD: {
+        gost_grasshopper_cipher_ctx_ctr *c = GOST_cipher_ctx_get_cipher_data(ctx);
+        if (c->c.type != GRASSHOPPER_CIPHER_CTRACPKMOMAC
+            || arg != 0 || ptr == NULL)
+            return -1;
+        *(int *)ptr = KUZNYECHIK_MAC_MAX_SIZE;
+        return 1;
+    }
+    case EVP_CTRL_AEAD_SET_TAG: {
+        gost_grasshopper_cipher_ctx_ctr *c = GOST_cipher_ctx_get_cipher_data(ctx);
+        if (c->c.type != GRASSHOPPER_CIPHER_CTRACPKMOMAC
+            || arg <= 0 || arg > KUZNYECHIK_MAC_MAX_SIZE
+            || ptr == NULL || GOST_cipher_ctx_encrypting(ctx))
+            return 0;
+        memcpy(c->tag, ptr, arg);
+        return 1;
+    }
+    case EVP_CTRL_AEAD_GET_TAG: {
+        gost_grasshopper_cipher_ctx_ctr *c = GOST_cipher_ctx_get_cipher_data(ctx);
+        if (c->c.type != GRASSHOPPER_CIPHER_CTRACPKMOMAC
+            || arg <= 0 || arg > KUZNYECHIK_MAC_MAX_SIZE
+            || ptr == NULL || !GOST_cipher_ctx_encrypting(ctx))
+            return 0;
+        memcpy(ptr, c->tag, arg);
+        return 1;
+    }
     case EVP_CTRL_PROCESS_UNPROTECTED:
     {
       STACK_OF(X509_ATTRIBUTE) *x = ptr;

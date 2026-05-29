@@ -1,0 +1,130 @@
+services:
+  dev-3.4:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+      args:
+        OPENSSL_VERSION: ${OPENSSL_VERSION:-openssl-3.4.0}
+    image: gost-engine-dev-3.4:local
+    container_name: gost-engine-dev-3.4
+    volumes:
+      - ../..:/workspace/src
+      - ./openssl/3.4.0:/workspace/openssl-src
+      - openssl-prefix-3.4:/opt/openssl
+      - openssl-build-3.4:/workspace/openssl-build
+      - gost-engine-build-3.4:/workspace/src/build
+      - ./cryptopro/data:/workspace/data
+    working_dir: /workspace/src
+    stdin_open: true
+    tty: true
+    cap_add:
+      - SYS_PTRACE
+    security_opt:
+      - seccomp=unconfined
+    environment:
+      - ASAN_OPTIONS=detect_leaks=1:halt_on_error=0:print_stats=1
+      - UBSAN_OPTIONS=print_stacktrace=1:halt_on_error=0
+      - OPENSSL_ENGINES=/opt/openssl/lib64/engines-3
+
+  dev-4.0:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+      args:
+        OPENSSL_VERSION: openssl-4.0.0
+    image: gost-engine-dev-4.0:local
+    container_name: gost-engine-dev-4.0
+    volumes:
+      - ../..:/workspace/src
+      - ./openssl/4.0.0:/workspace/openssl-src
+      - openssl-prefix-4.0:/opt/openssl
+      - openssl-build-4.0:/workspace/openssl-build
+      - gost-engine-build-4.0:/workspace/src/build
+      - ./cryptopro/data:/workspace/data
+    working_dir: /workspace/src
+    stdin_open: true
+    tty: true
+    cap_add:
+      - SYS_PTRACE
+    security_opt:
+      - seccomp=unconfined
+    environment:
+      - ASAN_OPTIONS=detect_leaks=1:halt_on_error=0:print_stats=1
+      - UBSAN_OPTIONS=print_stacktrace=1:halt_on_error=0
+      - OPENSSL_ENGINES=/opt/openssl/lib64/engines-3
+
+  dev-3.6:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+      args:
+        OPENSSL_VERSION: openssl-3.6.0
+    image: gost-engine-dev-3.6:local
+    container_name: gost-engine-dev-3.6
+    volumes:
+      - ../..:/workspace/src
+      - ./openssl/3.6.0:/workspace/openssl-src
+      - openssl-prefix-3.6:/opt/openssl
+      - openssl-build-3.6:/workspace/openssl-build
+      - gost-engine-build-3.6:/workspace/src/build
+      - ./cryptopro/data:/workspace/data
+    working_dir: /workspace/src
+    stdin_open: true
+    tty: true
+    cap_add:
+      - SYS_PTRACE
+    security_opt:
+      - seccomp=unconfined
+    environment:
+      - ASAN_OPTIONS=detect_leaks=1:halt_on_error=0:print_stats=1
+      - UBSAN_OPTIONS=print_stacktrace=1:halt_on_error=0
+      - OPENSSL_ENGINES=/opt/openssl/lib64/engines-3
+
+  test:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+      args:
+        OPENSSL_VERSION: ${OPENSSL_VERSION:-openssl-3.4.0}
+    image: gost-engine-test:local
+    container_name: gost-engine-test
+    volumes:
+      - ../..:/workspace/src
+      - ./openssl/3.4.0:/workspace/openssl-src
+      - openssl-prefix-3.4:/opt/openssl
+      - openssl-build-3.4:/workspace/openssl-build
+    working_dir: /workspace/src
+    cap_add:
+      - SYS_PTRACE
+    security_opt:
+      - seccomp=unconfined
+
+  # CryptoPro CSP 5.0.13003 cross-validation target — Debian-based
+  # sibling container. The cryptopro/data bind-mount is shared with
+  # dev-3.4 / dev-3.6 / dev-4.0 — that is the swap area for PFX exchange.
+  # cryptopro-store persists CSP's user / system stores across
+  # container restarts so installed certs and key containers survive
+  # `docker compose down`.
+  cryptopro:
+    build:
+      context: .
+      dockerfile: cryptopro/Dockerfile.cryptopro
+    image: gost-engine-cryptopro:local
+    container_name: gost-engine-cryptopro
+    volumes:
+      - ./cryptopro/data:/workspace/data
+      - cryptopro-store:/var/opt/cprocsp
+    stdin_open: true
+    tty: true
+
+volumes:
+  openssl-prefix-3.4:
+  openssl-prefix-3.6:
+  openssl-prefix-4.0:
+  openssl-build-3.4:
+  openssl-build-3.6:
+  openssl-build-4.0:
+  gost-engine-build-3.4:
+  gost-engine-build-3.6:
+  gost-engine-build-4.0:
+  cryptopro-store:

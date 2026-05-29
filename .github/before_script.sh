@@ -17,6 +17,22 @@ if [ "${PATCH_OPENSSL}" == "1" ]; then
     git apply patches/openssl-asn1_item_verify_ctx.patch
     git apply patches/openssl-x509_sig_info_init.patch
 fi
+
+# pkcs12 RFC 9337/9548 libcrypto fallbacks (see patches/pkcs12/README.md).
+# 3.6 needs the tls1.3 patch above as a prerequisite, so it stays gated
+# on PATCH_OPENSSL=1. 4.0 has no prereqs and is applied unconditionally
+# (the engine API is gone from apps/pkcs12.c on 4.0, so provider-mode
+# pkcs12 export hard-requires these fallbacks).
+case "$OPENSSL_BRANCH" in
+    openssl-3.6.0)
+        if [ "${PATCH_OPENSSL}" == "1" ]; then
+            git apply patches/pkcs12/openssl-pkcs12-provider-pbe-3.6.patch
+        fi
+        ;;
+    openssl-4.0.0)
+        git apply patches/pkcs12/openssl-pkcs12-provider-pbe-4.0.patch
+        ;;
+esac
 cd openssl
 git describe --always --long
 

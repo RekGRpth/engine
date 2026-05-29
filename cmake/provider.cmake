@@ -12,6 +12,8 @@ set(GOST_PROV_SOURCE_FILES
         gost_prov_tls.c
         gost_prov_tls.h
         gost_cipher_ctx.c
+        gost_cryptopro_keybag.c
+        gost_cryptopro_keybag_asn1.c
         )
 
 # The GOST provider uses this
