@@ -7,8 +7,8 @@ jobs:
         outputs:
             openssl-head: ${{ steps.openssl.outputs.head }}-${{ steps.patches.outputs.id }}-${{ steps.workflow.outputs.id }}
         steps:
-            - uses: actions/checkout@v2
-            - uses: actions/checkout@v2
+            - uses: actions/checkout@v7
+            - uses: actions/checkout@v7
               with:
                   repository: openssl/openssl
                   path: openssl
@@ -47,7 +47,7 @@ jobs:
         outputs:
             openssl-head: ${{ steps.openssl.outputs.head }}
         steps:
-            - uses: actions/checkout@v3
+            - uses: actions/checkout@v7
               with:
                   repository: openssl/openssl
                   path: openssl
@@ -75,8 +75,8 @@ jobs:
         outputs:
             openssl-head: ${{ steps.openssl.outputs.head }}-${{ steps.patches.outputs.id }}-${{ steps.workflow.outputs.id }}
         steps:
-            - uses: actions/checkout@v2
-            - uses: actions/checkout@v2
+            - uses: actions/checkout@v7
+            - uses: actions/checkout@v7
               with:
                   repository: openssl/openssl
                   path: openssl
@@ -111,8 +111,8 @@ jobs:
         outputs:
             openssl-head: ${{ steps.openssl.outputs.head }}
         steps:
-            - uses: actions/checkout@v2
-            - uses: actions/checkout@v2
+            - uses: actions/checkout@v7
+            - uses: actions/checkout@v7
               with:
                   repository: openssl/openssl
                   path: openssl
@@ -139,7 +139,7 @@ jobs:
         needs: msvc-openssl-3-6-0
         runs-on: windows-latest
         steps:
-            - uses: actions/checkout@v3
+            - uses: actions/checkout@v7
               with:
                   submodules: true
             - uses: actions/cache@v4
@@ -159,7 +159,7 @@ jobs:
         needs: msvc-openssl-3-6-0-patch
         runs-on: windows-latest
         steps:
-            - uses: actions/checkout@v2
+            - uses: actions/checkout@v7
               with:
                   submodules: true
             - uses: actions/cache@v4
@@ -179,7 +179,7 @@ jobs:
         needs: msvc-openssl-4-0-0
         runs-on: windows-latest
         steps:
-            - uses: actions/checkout@v2
+            - uses: actions/checkout@v7
               with:
                   submodules: true
             - uses: actions/cache@v4
@@ -199,7 +199,7 @@ jobs:
         needs: msvc-openssl-master
         runs-on: windows-latest
         steps:
-            - uses: actions/checkout@v2
+            - uses: actions/checkout@v7
               with:
                   submodules: true
             - uses: actions/cache@v4
